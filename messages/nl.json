@@ -1,0 +1,18 @@
+{
+  "app": {
+    "name": "Mi casa su casa",
+    "tagline": "Ons huishouden op één plek"
+  },
+  "nav": {
+    "today": "Vandaag",
+    "home": "Huis",
+    "money": "Geld",
+    "child": "Kind",
+    "more": "Meer"
+  },
+  "common": {
+    "undo": "Ongedaan maken",
+    "done": "Gedaan",
+    "add": "Toevoegen"
+  }
+}
