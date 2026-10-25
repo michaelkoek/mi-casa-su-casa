@@ -1,8 +1,9 @@
 Run the feature pipeline for: $ARGUMENTS
 
 ## Safety
-- Confirm we are NOT on the main or master branch. If we are, stop and ask me to create a feature branch first (or create one named after the feature if I tell you to).
-- Never merge, push, or delete anything. Leave the branch for my review.
+- Solo project: work directly on `main`. No feature branches, no PRs.
+- Start from a clean working tree; if there are uncommitted changes, stop and ask what to do with them.
+- Never force-push, rewrite history, or delete branches/files outside the feature's scope.
 
 ## Setup
 - Ensure `.pipeline/` exists, then clear its contents so no agent reads stale handoff files from a previous run.
@@ -16,11 +17,11 @@ Run the feature pipeline for: $ARGUMENTS
 3. Delegate to the **tester** subagent. Wait for `.pipeline/test-results.md`.
    - If tests failed, stop and show me the failures.
 4. Delegate to the **reviewer** subagent. Wait for `.pipeline/review.md`.
+5. If the VERDICT is approve: run `npm run lint`, `npm test` and `npm run build`. If all pass, commit the changes on `main` (never `.pipeline/`, `.env*` or other secrets) and `git push origin main`.
+   - If the VERDICT is not approve, or any check fails: do not commit; stop and show me what's wrong.
 
 ## Report
 Finish with a compact summary:
-- one line per stage with a status icon: planner • coder • tester • reviewer
+- one line per stage with a status icon: planner • coder • tester • reviewer • push
 - the final VERDICT from review.md
-- the exact next step for me (what to read, what to fix, or "ready to review and merge")
-
-Do not merge anything.
+- the commit hash that was pushed, or the exact next step for me (what to read, what to fix)
