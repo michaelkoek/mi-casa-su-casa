@@ -410,7 +410,8 @@
     "otherEmail": "Ander e-mailadres",
     "noAccessTitle": "Geen toegang",
     "noAccess": "{email} hoort niet bij een huishouden. Log uit en probeer een ander e-mailadres.",
-    "signOut": "Uitloggen"
+    "signOut": "Uitloggen",
+    "serverError": "Er ging iets mis. Probeer het zo opnieuw."
   },
   "email": {
     "subject": "Je code voor Mi casa: {code}",
@@ -418,7 +419,8 @@
   },
   "sync": {
     "offline": "Offline, wijzigingen volgen straks",
-    "failed": "Een wijziging kon niet worden opgeslagen"
+    "failed": "Een wijziging kon niet worden opgeslagen",
+    "serverDown": "Opslaan lukt even niet, we proberen het opnieuw"
   },
   "push": {
     "title": "Meldingen",
@@ -440,6 +442,11 @@
   "offline": {
     "title": "Je bent offline",
     "body": "Deze pagina is nog niet opgeslagen. Maak verbinding en probeer het opnieuw.",
+    "retry": "Opnieuw proberen"
+  },
+  "error": {
+    "title": "Er ging iets mis",
+    "body": "De app kon je gegevens niet laden. Probeer het zo opnieuw.",
     "retry": "Opnieuw proberen"
   }
 }

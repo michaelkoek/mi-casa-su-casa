@@ -7,7 +7,7 @@ import { authClient } from "@/lib/auth-client";
 import { hardNavigate } from "@/lib/navigate";
 import { Field, PrimaryButton, SoftButton } from "./form";
 
-type ErrorKey = "emailError" | "wrongCode" | "expired" | "tooMany" | "network" | "codeError";
+type ErrorKey = "emailError" | "wrongCode" | "expired" | "tooMany" | "network" | "codeError" | "serverError";
 
 type FormState = {
   step: "email" | "code";
@@ -23,13 +23,14 @@ const RESEND_MS = 30000;
 
 type AuthError = { status?: number; code?: string; message?: string } | null | undefined;
 
-function mapError(error: AuthError): ErrorKey {
+function mapError(error: AuthError, step: FormState["step"]): ErrorKey {
   const code = `${error?.code ?? ""} ${error?.message ?? ""}`.toUpperCase();
   if (error?.status === 429) return "tooMany";
   if (code.includes("TOO_MANY")) return "tooMany";
   if (code.includes("EXPIRED")) return "expired";
   if (code.includes("INVALID_OTP") || code.includes("INVALID OTP")) return "wrongCode";
   if (!error?.status) return "network";
+  if (error.status >= 500 || step === "email") return "serverError";
   return "wrongCode";
 }
 
@@ -52,7 +53,7 @@ export function LoginForm() {
     try {
       const res = await authClient.emailOtp.sendVerificationOtp({ email, type: "sign-in" });
       if (res.error) {
-        setS((p) => ({ ...p, busy: false, error: mapError(res.error) }));
+        setS((p) => ({ ...p, busy: false, error: mapError(res.error, "email") }));
         return;
       }
       setNow(Date.now());
@@ -76,7 +77,7 @@ export function LoginForm() {
     try {
       const res = await authClient.signIn.emailOtp({ email: s.email.trim().toLowerCase(), otp: s.code });
       if (res.error) {
-        setS((p) => ({ ...p, busy: false, error: mapError(res.error) }));
+        setS((p) => ({ ...p, busy: false, error: mapError(res.error, "code") }));
         return;
       }
       hardNavigate("/");

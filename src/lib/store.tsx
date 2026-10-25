@@ -24,7 +24,8 @@ import type { HouseholdState } from "./types";
 
 type Updater = (state: HouseholdState) => HouseholdState;
 
-type SyncInfo = { offline: boolean; pending: number; failedAt: number | null };
+/** `offline`: no network. `serverDown`: network works, but the server threw (database, deploy). */
+type SyncInfo = { offline: boolean; serverDown: boolean; pending: number; failedAt: number | null };
 
 type HouseholdContext = {
   state: HouseholdState;
@@ -75,11 +76,13 @@ export function HouseholdProvider({
 }) {
   const [state, setState] = useState<HouseholdState>(initialState);
   const [ready, setReady] = useState(false);
-  const [sync, setSync] = useState<SyncInfo>({ offline: false, pending: 0, failedAt: null });
+  const [sync, setSync] = useState<SyncInfo>({ offline: false, serverDown: false, pending: 0, failedAt: null });
   const stateRef = useRef(state);
   const queueRef = useRef<Changeset[]>([]);
   const lockRef = useRef<Promise<unknown>>(Promise.resolve());
   const householdRef = useRef(householdId);
+  /** Set when the server rejected a change; the next pull replaces the optimistic state. */
+  const droppedRef = useRef(false);
 
   const setBoth = useCallback((next: HouseholdState) => {
     stateRef.current = next;
@@ -115,7 +118,12 @@ export function HouseholdProvider({
         /* ignore */
       }
     }
-    setSync((s) => ({ ...s, offline: true }));
+    const network = !navigator.onLine || err instanceof TypeError;
+    setSync((s) => (network ? { ...s, offline: true } : { ...s, serverDown: true }));
+  }, []);
+
+  const markHealthy = useCallback(() => {
+    setSync((s) => (s.offline || s.serverDown ? { ...s, offline: false, serverDown: false } : s));
   }, []);
 
   /** Sends queued changesets in order. Resolves true when the queue is empty or a pull is still useful. */
@@ -131,21 +139,25 @@ export function HouseholdProvider({
       }
       if (res.ok) {
         setQueue(queueRef.current.slice(1));
-        setSync((s) => (s.offline ? { ...s, offline: false } : s));
+        markHealthy();
         continue;
       }
       if (res.error === "unauthorized") {
         goToLogin();
         return false;
       }
-      if (res.error === "server") return false;
+      if (res.error === "server") {
+        setSync((s) => ({ ...s, serverDown: true }));
+        return false;
+      }
       // invalid or conflict: drop it, tell the user and take the server state.
+      droppedRef.current = true;
       setQueue(queueRef.current.slice(1));
       setSync((s) => ({ ...s, failedAt: Date.now() }));
       return true;
     }
     return true;
-  }, [goToLogin, handleThrown, setQueue]);
+  }, [goToLogin, handleThrown, markHealthy, setQueue]);
 
   const pullInner = useCallback(async () => {
     try {
@@ -154,12 +166,13 @@ export function HouseholdProvider({
         goToLogin();
         return;
       }
+      droppedRef.current = false;
       setBoth(rebase(res.state, queueRef.current));
-      setSync((s) => (s.offline ? { ...s, offline: false } : s));
+      markHealthy();
     } catch (err) {
       handleThrown(err);
     }
-  }, [goToLogin, handleThrown, setBoth]);
+  }, [goToLogin, handleThrown, markHealthy, setBoth]);
 
   const flush = useCallback(() => lock(flushInner), [lock, flushInner]);
   const syncNow = useCallback(async () => {
@@ -217,11 +230,14 @@ export function HouseholdProvider({
       setBoth(next);
       if (changes.length > 0) {
         setQueue([...queueRef.current, { id: crypto.randomUUID(), changes }]);
-        void flush();
+        void flush().then((ok) => {
+          // A rejected change stays on screen until the server state replaces it.
+          if (ok && droppedRef.current) void lock(pullInner);
+        });
       }
       return next;
     },
-    [flush, setBoth, setQueue],
+    [flush, lock, pullInner, setBoth, setQueue],
   );
 
   const snapshot = useCallback(() => stateRef.current, []);
