@@ -32,7 +32,8 @@ function Money() {
   const month = toDateKey(now).slice(0, 7);
   const summary = budgetSummary(state.transactions, state.categories, month);
   const left = summary.totalBudgetCents - summary.totalSpentCents;
-  const consentDays = Math.round((new Date(state.bank.consentUntil).getTime() - now.getTime()) / 86400000);
+  const bank = state.bank;
+  const consentDays = bank ? Math.round((new Date(bank.consentUntil).getTime() - now.getTime()) / 86400000) : null;
   const monthName = now.toLocaleDateString("nl-NL", { month: "long" });
 
   const sync = () => {
@@ -52,18 +53,20 @@ function Money() {
         <p className={clsx("relative z-10 mt-1 text-sm font-medium", left < 0 ? "text-bad" : "text-ink-2")}>
           {left >= 0 ? t("under", { amount: formatEuro(left, true) }) : t("over", { amount: formatEuro(-left, true) })}
         </p>
-        <div className="relative z-10 mt-4 flex items-center gap-2 text-[13px] text-ink-2">
-          <Bank size={18} />
-          <span>{t("bankSynced", { bank: state.bank.name, time: formatTime(state.bank.syncedAt) })}</span>
-          <button type="button" onClick={sync} disabled={syncing} aria-label={t("refresh")}
-            className="press ml-auto grid h-10 w-10 place-items-center rounded-full bg-bg">
-            <ArrowClockwise size={18} className={clsx(syncing && "animate-spin")} />
-          </button>
-        </div>
+        {bank && (
+          <div className="relative z-10 mt-4 flex items-center gap-2 text-[13px] text-ink-2">
+            <Bank size={18} />
+            <span>{t("bankSynced", { bank: bank.name, time: formatTime(bank.syncedAt) })}</span>
+            <button type="button" onClick={sync} disabled={syncing} aria-label={t("refresh")}
+              className="press ml-auto grid h-10 w-10 place-items-center rounded-full bg-bg">
+              <ArrowClockwise size={18} className={clsx(syncing && "animate-spin")} />
+            </button>
+          </div>
+        )}
         <span className="pointer-events-none absolute -right-3 -top-1 opacity-90"><PiggyArt /></span>
       </section>
-      {consentDays <= 90 && (
-        <p className="mt-2.5 px-1 text-[13px] text-ink-3">{t("consent", { days: consentDays, bank: state.bank.name })}</p>
+      {bank && consentDays !== null && consentDays <= 90 && (
+        <p className="mt-2.5 px-1 text-[13px] text-ink-3">{t("consent", { days: consentDays, bank: bank.name })}</p>
       )}
 
       {summary.uncategorized.length > 0 ? (

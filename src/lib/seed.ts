@@ -1,9 +1,9 @@
 import { addDays, toDateKey } from "./logic";
-import type { HouseholdState } from "./types";
+import type { HouseholdState, Member } from "./types";
 
 /**
- * Demo data for the prototype. Everything is placed relative to "now" so the
- * app looks alive whenever it is opened. Replaced by Neon data in phase 1.
+ * Demo data. Everything is placed relative to "now" so the app looks alive.
+ * Loaded into a household only by `npm run db:bootstrap -- --demo`, and by tests.
  */
 export function createSeed(now = new Date()): HouseholdState {
   const today = toDateKey(now);
@@ -171,5 +171,40 @@ export function createSeed(now = new Date()): HouseholdState {
       { id: "e3", title: "Etentje met vrienden", start: at(5, 19, 0), allDay: false },
       { id: "e4", title: "Afvalkalender: papier", start: at(3, 0, 0), allDay: true },
     ],
+  };
+}
+
+/**
+ * Starting data for a real household: the standard signals, chores, budget
+ * categories and care days, but none of the demo content.
+ */
+export function createStarter(members: Member[], now = new Date()): HouseholdState {
+  const demo = createSeed(now);
+  const today = toDateKey(now);
+  const rotation = members.map((m) => m.id);
+  return {
+    ...demo,
+    me: members[0].id,
+    members,
+    signals: demo.signals.map((s) => ({ ...s, openedBy: null, openedAt: null })),
+    chores: demo.chores.map((c, i) => ({ ...c, rotation: [...rotation], nextDue: addDays(today, i + 1) })),
+    tasks: [],
+    projects: [],
+    transactions: [],
+    rules: [],
+    bank: null,
+    care: demo.care.map((d) => ({ ...d, atHome: true, bring: null, pick: null })),
+    doses: [],
+    temperatures: [],
+    appointments: [],
+    milestones: [],
+    sizes: demo.sizes.map((z) => ({ ...z, size: "-", note: null })),
+    stock: [],
+    growth: [],
+    foods: [],
+    recipes: [],
+    mealPlan: [],
+    shopping: [],
+    events: [],
   };
 }

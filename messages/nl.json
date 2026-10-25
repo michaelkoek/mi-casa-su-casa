@@ -338,7 +338,7 @@
     "mailSub": "Samenvatting van belangrijke mail",
     "later": "Later",
     "settings": "Instellingen",
-    "settingsSub": "Namen, wie ben ik, installeren"
+    "settingsSub": "Namen, meldingen, account"
   },
   "food": {
     "eyebrow": "Eten",
@@ -383,16 +383,63 @@
     "title": "Ons huishouden",
     "members": "Wie wonen hier",
     "memberLabel": "Persoon {n}",
-    "whoAmI": "Wie ben ik op dit toestel",
-    "whoAmIHint": "Bepaalt wat \"jij\" is in de app",
-    "switched": "Gewisseld",
     "install": "Op je beginscherm",
     "installHelp": "iPhone: tik in Safari op Deel en kies Zet op beginscherm. Android: tik in Chrome op het menu en kies App installeren. Meldingen werken pas na installatie.",
-    "prototype": "Prototype",
-    "prototypeHelp": "Dit prototype bewaart alles op dit toestel. In fase 1 komt de gedeelde database, zodat jullie dezelfde gegevens zien.",
-    "reset": "Voorbeelddata terugzetten",
-    "resetConfirm": "Ja, terugzetten",
-    "cancel": "Annuleren",
-    "resetDone": "Voorbeelddata teruggezet"
+    "account": "Account",
+    "signedInAs": "Ingelogd als {email}",
+    "signOut": "Uitloggen"
+  },
+  "auth": {
+    "title": "Inloggen",
+    "intro": "Vul je e-mailadres in. Je krijgt een code van 6 cijfers.",
+    "email": "E-mailadres",
+    "emailPlaceholder": "jij@voorbeeld.nl",
+    "emailError": "Dit e-mailadres klopt niet.",
+    "sendCode": "Stuur code",
+    "codeSent": "Als {email} bij ons huishouden hoort, is er een code onderweg.",
+    "codeHint": "De code is 10 minuten geldig.",
+    "code": "Code",
+    "codeError": "Vul de 6 cijfers in.",
+    "wrongCode": "Deze code klopt niet.",
+    "expired": "Deze code is verlopen. Vraag een nieuwe aan.",
+    "tooMany": "Te vaak geprobeerd. Wacht even en probeer het opnieuw.",
+    "network": "Geen verbinding. Probeer het zo opnieuw.",
+    "submit": "Inloggen",
+    "resend": "Nieuwe code sturen",
+    "resendIn": "Nieuwe code over {seconds} s",
+    "otherEmail": "Ander e-mailadres",
+    "noAccessTitle": "Geen toegang",
+    "noAccess": "{email} hoort niet bij een huishouden. Log uit en probeer een ander e-mailadres.",
+    "signOut": "Uitloggen"
+  },
+  "email": {
+    "subject": "Je code voor Mi casa: {code}",
+    "text": "Je inlogcode is {code}.\n\nDe code is 10 minuten geldig. Negeer deze mail als je niets aanvroeg."
+  },
+  "sync": {
+    "offline": "Offline, wijzigingen volgen straks",
+    "failed": "Een wijziging kon niet worden opgeslagen"
+  },
+  "push": {
+    "title": "Meldingen",
+    "unsupported": "Dit toestel ondersteunt geen meldingen.",
+    "needsInstall": "Zet de app eerst op je beginscherm. Daarna kun je hier meldingen aanzetten.",
+    "denied": "Meldingen zijn geblokkeerd. Zet ze aan in de instellingen van je toestel.",
+    "enable": "Meldingen aanzetten",
+    "on": "Meldingen staan aan op dit toestel.",
+    "test": "Testmelding",
+    "testSent": "Testmelding verstuurd",
+    "testNone": "Dit toestel is nog niet aangemeld",
+    "testFailed": "Testmelding mislukt",
+    "disable": "Uitzetten",
+    "disabled": "Meldingen staan uit op dit toestel.",
+    "enableFailed": "Dat is niet gelukt. Probeer het opnieuw.",
+    "testTitle": "Testmelding",
+    "testBody": "Meldingen werken op dit toestel."
+  },
+  "offline": {
+    "title": "Je bent offline",
+    "body": "Deze pagina is nog niet opgeslagen. Maak verbinding en probeer het opnieuw.",
+    "retry": "Opnieuw proberen"
   }
 }

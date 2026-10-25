@@ -17,7 +17,7 @@ export function Screen({ children }: { children: ReactNode }) {
   );
 }
 
-function ScreenSkeleton() {
+export function ScreenSkeleton() {
   return (
     <div aria-hidden="true" className="flex flex-col gap-3">
       <div className="skeleton h-10 w-40" />

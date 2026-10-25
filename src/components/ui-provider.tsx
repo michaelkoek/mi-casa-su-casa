@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useTranslations } from "next-intl";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useHousehold } from "@/lib/store";
+import { revertTo } from "@/lib/sync/diff";
 import type { HouseholdState } from "@/lib/types";
 
 export type SheetKind = "expense" | "task" | "project" | "dose" | "quick";
@@ -23,7 +24,7 @@ const Ctx = createContext<UIContext | null>(null);
 
 export function UIProvider({ children }: { children: ReactNode }) {
   const t = useTranslations("common");
-  const { update, replace, snapshot } = useHousehold();
+  const { update, snapshot } = useHousehold();
   const [toastState, setToast] = useState<Toast | null>(null);
   const [sheet, setSheet] = useState<SheetKind | null>(null);
   const timer = useRef<number | null>(null);
@@ -38,10 +39,11 @@ export function UIProvider({ children }: { children: ReactNode }) {
   const act = useCallback(
     (text: string, fn: (s: HouseholdState) => HouseholdState) => {
       const before = snapshot();
-      update(fn);
-      toast(text, () => replace(before));
+      const after = update(fn);
+      // Undo reverts only what this action changed, so the other member's edits survive.
+      toast(text, () => update(revertTo(before, after)));
     },
-    [update, replace, toast, snapshot],
+    [update, toast, snapshot],
   );
 
   useEffect(() => () => {

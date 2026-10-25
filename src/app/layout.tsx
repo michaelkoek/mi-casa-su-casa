@@ -3,7 +3,7 @@ import { GeistSans } from "geist/font/sans";
 import { GeistMono } from "geist/font/mono";
 import { NextIntlClientProvider } from "next-intl";
 import { getTranslations } from "next-intl/server";
-import { AppProviders } from "@/components/app-providers";
+import { SerwistProvider } from "@serwist/turbopack/react";
 import "./globals.css";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -32,7 +32,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html lang="nl" className={`${GeistSans.variable} ${GeistMono.variable} h-full antialiased`}>
       <body className="min-h-[100dvh]">
         <NextIntlClientProvider>
-          <AppProviders>{children}</AppProviders>
+          <SerwistProvider
+            swUrl="/serwist/sw.js"
+            disable={process.env.NODE_ENV === "development" && process.env.NEXT_PUBLIC_ENABLE_SW_IN_DEV !== "true"}
+          >
+            {children}
+          </SerwistProvider>
         </NextIntlClientProvider>
       </body>
     </html>

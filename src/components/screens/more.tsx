@@ -12,12 +12,15 @@ import {
   planMeal,
   recipeToShopping,
   renameMember,
-  setMe,
   toggleShopping,
 } from "@/lib/actions";
 import { addDays, formatTime, toDateKey } from "@/lib/logic";
+import { deletePushSubscription } from "@/app/actions/push";
+import { authClient } from "@/lib/auth-client";
+import { hardNavigate } from "@/lib/navigate";
 import { useHousehold, useMemberName, useNow } from "@/lib/store";
 import { ChoiceGroup, Checkbox, Field, SoftButton } from "../form";
+import { PushSettings } from "../push-settings";
 import { PageHeader, Screen, SectionTitle } from "../screen";
 import { Sheet } from "../sheet";
 import { useUI } from "../ui-provider";
@@ -287,9 +290,27 @@ export function SettingsScreen() {
 
 function Settings() {
   const t = useTranslations("settings");
-  const { state, update, reset } = useHousehold();
-  const { toast } = useUI();
-  const [confirmReset, setConfirmReset] = useState(false);
+  const tp = useTranslations("push");
+  const { state, update, account } = useHousehold();
+  const [signingOut, setSigningOut] = useState(false);
+
+  const signOut = async () => {
+    setSigningOut(true);
+    try {
+      // Best effort: drop this device's push subscription and cached pages before leaving.
+      const reg = await navigator.serviceWorker?.getRegistration();
+      const sub = await reg?.pushManager.getSubscription();
+      if (sub) {
+        await deletePushSubscription({ endpoint: sub.endpoint }).catch(() => {});
+        await sub.unsubscribe().catch(() => {});
+      }
+      if ("caches" in window) await Promise.all((await caches.keys()).map((k) => caches.delete(k)));
+    } catch {
+      /* signing out must not depend on cleanup */
+    }
+    await authClient.signOut().catch(() => {});
+    hardNavigate("/login");
+  };
 
   return (
     <>
@@ -303,29 +324,18 @@ function Settings() {
         ))}
       </div>
 
-      <SectionTitle>{t("whoAmI")}</SectionTitle>
-      <ChoiceGroup label={t("whoAmIHint")} value={state.me} onChange={(v) => { update(setMe(v)); toast(t("switched")); }}
-        options={state.members.map((m) => ({ value: m.id, label: m.name }))} />
+      <SectionTitle>{tp("title")}</SectionTitle>
+      <PushSettings />
+
+      <SectionTitle>{t("account")}</SectionTitle>
+      <p className="mb-3 text-sm text-ink-2">{t("signedInAs", { email: account.email })}</p>
+      <SoftButton className="w-full" onClick={signOut} disabled={signingOut}>{t("signOut")}</SoftButton>
 
       <SectionTitle>{t("install")}</SectionTitle>
       <div className="flex gap-3 rounded-[22px] bg-tile-money p-4 text-sm">
         <ShareNetwork size={22} className="flex-none" />
         <p>{t("installHelp")}</p>
       </div>
-
-      <SectionTitle>{t("prototype")}</SectionTitle>
-      <p className="mb-3 text-sm text-ink-2">{t("prototypeHelp")}</p>
-      {confirmReset ? (
-        <div className="grid grid-cols-2 gap-2.5">
-          <SoftButton onClick={() => setConfirmReset(false)}>{t("cancel")}</SoftButton>
-          <button type="button" className="press h-12 rounded-2xl bg-bad font-semibold text-white"
-            onClick={() => { reset(); setConfirmReset(false); toast(t("resetDone")); }}>
-            {t("resetConfirm")}
-          </button>
-        </div>
-      ) : (
-        <SoftButton className="w-full" onClick={() => setConfirmReset(true)}>{t("reset")}</SoftButton>
-      )}
     </>
   );
 }

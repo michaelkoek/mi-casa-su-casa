@@ -86,6 +86,8 @@ export type Milestone = { id: string; date: string; text: string };
 
 export type RoutineItem = { id: string; time: string; label: string };
 
+export type BankStatus = { name: string; syncedAt: string; consentUntil: string };
+
 export type HouseholdState = {
   version: 1;
   me: MemberId;
@@ -97,7 +99,8 @@ export type HouseholdState = {
   categories: Category[];
   transactions: Transaction[];
   rules: CategoryRule[];
-  bank: { name: string; syncedAt: string; consentUntil: string };
+  /** Null until the bank link exists (phase 3). */
+  bank: BankStatus | null;
   care: CareDay[];
   medicines: Medicine[];
   doses: Dose[];

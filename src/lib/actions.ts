@@ -98,7 +98,8 @@ export const setBudget = (categoryId: string, budgetCents: number) => (s: S): S 
   categories: s.categories.map((c) => (c.id === categoryId ? { ...c, budgetCents } : c)),
 });
 
-export const syncBank = (now: Date) => (s: S): S => ({ ...s, bank: { ...s.bank, syncedAt: now.toISOString() } });
+export const syncBank = (now: Date) => (s: S): S =>
+  s.bank ? { ...s, bank: { ...s.bank, syncedAt: now.toISOString() } } : s;
 
 export const addDose = (medicineId: string, amount: string, by: MemberId, now: Date) => (s: S): S => ({
   ...s,
@@ -167,8 +168,6 @@ export const renameMember = (id: MemberId, name: string) => (s: S): S => ({
   ...s,
   members: s.members.map((m) => (m.id === id ? { ...m, name } : m)),
 });
-
-export const setMe = (id: MemberId) => (s: S): S => ({ ...s, me: id });
 
 export const addMilestone = (text: string, date: string) => (s: S): S => ({
   ...s,

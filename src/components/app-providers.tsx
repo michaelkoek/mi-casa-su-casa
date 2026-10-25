@@ -3,7 +3,9 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, type ReactNode } from "react";
 import { HouseholdProvider } from "@/lib/store";
+import type { HouseholdState } from "@/lib/types";
 import { QuickAdd } from "./quick-add";
+import { SyncStatus } from "./sync-status";
 import { TabBar } from "./tab-bar";
 import { UIProvider, useUI, type SheetKind } from "./ui-provider";
 
@@ -24,11 +26,22 @@ function ShortcutHandler() {
   return null;
 }
 
-export function AppProviders({ children }: { children: ReactNode }) {
+export function AppProviders({
+  initialState,
+  householdId,
+  account,
+  children,
+}: {
+  initialState: HouseholdState;
+  householdId: string;
+  account: { email: string };
+  children: ReactNode;
+}) {
   return (
-    <HouseholdProvider>
+    <HouseholdProvider initialState={initialState} householdId={householdId} account={account}>
       <UIProvider>
         {children}
+        <SyncStatus />
         <TabBar />
         <QuickAdd />
         <Suspense fallback={null}>
