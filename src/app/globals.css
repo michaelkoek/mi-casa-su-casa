@@ -3,68 +3,77 @@
 /*
  * Mi casa su casa — design tokens
  * Bron van waarheid voor kleur, radius, schaduw en beweging. Zie docs/design.md.
- * Warme stone-neutralen + één accent (pine). Geen tweede accentkleur.
+ * Wit canvas, één warm oranje accent, zachte tegelkleuren per module, navy voor de belangrijkste tegel.
  */
 
+/* Light */
 :root {
   /* Oppervlakken */
-  --bg: #f6f4f1;
-  --surface: #ffffff;
-  --surface-2: #efece7;
-  --line: #e4dfd8;
+  --bg: #ffffff;
+  --surface: #f5f4f1;
+  --line: #ecebe7;
 
   /* Tekst */
-  --ink: #1c1917;
-  --ink-2: #57534e;
-  --ink-3: #8a847d;
+  --ink: #17181f;
+  --ink-2: #4f525e;
+  --ink-3: #6c6f7c;
 
-  /* Accent (pine) */
-  --accent: #2f6b5e;
-  --accent-ink: #ffffff;
-  --accent-soft: #e3eeea;
+  /* Accent (warm oranje) — gebruik --accent-strong achter witte tekst (contrast) */
+  --accent: #e8743b;
+  --accent-strong: #c4521e;
+  --accent-soft: #fde9dc;
+  --hero: #e26a2f;
+  --hero-sub: #3a1a0a;
+  --navy: #1f2130;
 
-  /* Status (alleen voor betekenis, nooit decoratie) */
-  --ok: #3f7a52;
-  --warn: #a8701c;
-  --bad: #b3412f;
-  --bad-soft: #f6e4e0;
+  /* Tegelkleuren per module */
+  --tile-money: #dde9f6;
+  --tile-child: #f8e2e5;
+  --tile-jobs: #ebe6f6;
+  --tile-food: #fbe7d8;
+  --tile-agenda: #e0f1e7;
+
+  /* Status (alleen voor betekenis) */
+  --bad: #c13d2c;
 
   /* Vorm */
-  --radius-sm: 10px;
-  --radius-md: 14px;
-  --radius-lg: 20px;
-  --radius-sheet: 28px;
-  --shadow-card: 0 1px 0 rgb(28 25 23 / 0.04), 0 12px 32px -18px rgb(28 25 23 / 0.18);
-  --shadow-sheet: 0 -12px 40px -12px rgb(28 25 23 / 0.22);
+  --radius-sm: 12px;
+  --radius-md: 16px;
+  --radius-lg: 22px;
+  --radius-tile: 24px;
+  --radius-hero: 26px;
+  --radius-sheet: 30px;
+  --shadow-card: 0 1px 0 rgb(23 24 31 / 0.03), 0 14px 30px -20px rgb(23 24 31 / 0.25);
 
   /* Beweging: kort, ease-out, alleen transform/opacity */
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
-  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-sheet: cubic-bezier(0.32, 0.72, 0, 1);
   --dur-fast: 150ms;
-  --dur-base: 220ms;
-  --dur-slow: 300ms;
+  --dur-base: 260ms;
+  --dur-slow: 420ms;
+  --stagger: 40ms;
 
   color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #12110f;
-    --surface: #1c1a17;
-    --surface-2: #262420;
-    --line: #2f2c28;
-    --ink: #f4f1ec;
-    --ink-2: #bdb6ad;
-    --ink-3: #8a847d;
-    --accent: #6fb3a2;
-    --accent-ink: #0f1e1a;
-    --accent-soft: #1c2d29;
-    --ok: #7fbf8f;
-    --warn: #e0a54a;
-    --bad: #ec8a78;
-    --bad-soft: #3a211c;
-    --shadow-card: 0 1px 0 rgb(0 0 0 / 0.3), 0 12px 32px -18px rgb(0 0 0 / 0.6);
-    --shadow-sheet: 0 -12px 40px -12px rgb(0 0 0 / 0.6);
+    --bg: #111216;
+    --surface: #1b1c22;
+    --line: #26272f;
+    --ink: #f3f2ef;
+    --ink-2: #c2c1c9;
+    --ink-3: #9c9ca8;
+    --accent-soft: #3a2418;
+    --hero-sub: #2a1206;
+    --navy: #2a2c3c;
+    --tile-money: #1d2836;
+    --tile-child: #33232a;
+    --tile-jobs: #272338;
+    --tile-food: #35261c;
+    --tile-agenda: #1c2c25;
+    --bad: #f08a76;
+    --shadow-card: 0 1px 0 rgb(0 0 0 / 0.3), 0 14px 30px -20px rgb(0 0 0 / 0.7);
     color-scheme: dark;
   }
 }
@@ -72,24 +81,28 @@
 @theme inline {
   --color-bg: var(--bg);
   --color-surface: var(--surface);
-  --color-surface-2: var(--surface-2);
   --color-line: var(--line);
   --color-ink: var(--ink);
   --color-ink-2: var(--ink-2);
   --color-ink-3: var(--ink-3);
   --color-accent: var(--accent);
-  --color-accent-ink: var(--accent-ink);
+  --color-accent-strong: var(--accent-strong);
   --color-accent-soft: var(--accent-soft);
-  --color-ok: var(--ok);
-  --color-warn: var(--warn);
+  --color-hero: var(--hero);
+  --color-navy: var(--navy);
+  --color-tile-money: var(--tile-money);
+  --color-tile-child: var(--tile-child);
+  --color-tile-jobs: var(--tile-jobs);
+  --color-tile-food: var(--tile-food);
+  --color-tile-agenda: var(--tile-agenda);
   --color-bad: var(--bad);
-  --color-bad-soft: var(--bad-soft);
   --radius-sm: var(--radius-sm);
   --radius-md: var(--radius-md);
   --radius-lg: var(--radius-lg);
+  --radius-tile: var(--radius-tile);
+  --radius-hero: var(--radius-hero);
   --radius-sheet: var(--radius-sheet);
   --shadow-card: var(--shadow-card);
-  --shadow-sheet: var(--shadow-sheet);
   --ease-out: var(--ease-out);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
@@ -128,4 +141,72 @@ body {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* ---------- App shell ---------- */
+
+.screen-pad {
+  padding: calc(env(safe-area-inset-top) + 18px) 18px calc(env(safe-area-inset-bottom) + 120px);
+}
+
+/* Tiles and list rows rise in once, one after another (only on first paint of a screen). */
+@keyframes rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: none; }
+}
+.rise {
+  animation: rise var(--dur-slow) var(--ease-out) both;
+  animation-delay: calc(var(--i, 0) * var(--stagger));
+}
+
+@keyframes pop {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+.pop { animation: pop 360ms var(--ease-out) both; }
+
+@keyframes pulse-once {
+  0% { transform: scale(0.94); }
+  60% { transform: scale(1.03); }
+  100% { transform: scale(1); }
+}
+.pulse-once { animation: pulse-once 340ms var(--ease-out); }
+
+/* Checkbox tick draws itself */
+.tick path { stroke-dasharray: 24; stroke-dashoffset: 24; transition: stroke-dashoffset 260ms var(--ease-out); }
+.tick.on path { stroke-dashoffset: 0; }
+
+/* Skeleton while local data loads */
+.skeleton { background: var(--surface); border-radius: var(--radius-tile); }
+
+/* ---------- View transitions between tabs ---------- */
+
+::view-transition-old(.nav-forward) {
+  --slide-offset: -40px;
+  animation: 150ms ease-in both vt-fade reverse, 320ms var(--ease-out) both vt-slide reverse;
+}
+::view-transition-new(.nav-forward) {
+  --slide-offset: 40px;
+  animation: 200ms ease-out 100ms both vt-fade, 320ms var(--ease-out) both vt-slide;
+}
+::view-transition-old(.nav-back) {
+  --slide-offset: 40px;
+  animation: 150ms ease-in both vt-fade reverse, 320ms var(--ease-out) both vt-slide reverse;
+}
+::view-transition-new(.nav-back) {
+  --slide-offset: -40px;
+  animation: 200ms ease-out 100ms both vt-fade, 320ms var(--ease-out) both vt-slide;
+}
+@keyframes vt-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes vt-slide { from { translate: var(--slide-offset); } to { translate: 0; } }
+
+/* The tab bar stays put while content slides */
+::view-transition-group(tab-bar) { animation: none; z-index: 100; }
+::view-transition-old(tab-bar) { display: none; }
+::view-transition-new(tab-bar) { animation: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) { animation: none !important; }
 }

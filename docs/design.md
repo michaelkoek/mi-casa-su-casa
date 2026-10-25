@@ -1,6 +1,6 @@
 # Design — Mi casa su casa
 
-Richting: **rustig, warm en snel**. Een huis-app die je tien keer per dag met één hand opent.
+Richting: **warm, speels en snel** — bento-tegels met grote illustraties, één oranje accent. Een huis-app die je tien keer per dag met één hand opent.
 Strak betekent hier: weinig kleur, veel ruimte, één duidelijke actie per scherm.
 
 Klikbaar prototype en designsysteem: https://claude.ai/artifact/U4cMt91yRg9DMsaB5hm6e2
@@ -9,10 +9,20 @@ De toets voor elk scherm: kan iemand het zonder uitleg, met één hand, binnen v
 
 ## Navigatie
 
-- Tabbalk onderaan, vijf tabs: **Vandaag · Huis · Geld · Kind · Meer** (Meer = Eten, Agenda, Mail, Instellingen)
-- Eén zwevende plusknop rechtsonder boven de tabbalk: opent een sheet met snelle acties (Uitgave, Taak, Klus, Medicijn)
+- Tabbalk onderaan met iconen (geen labels, wel aria-labels) en een oranje punt onder de actieve tab: **Vandaag · Huis · (+) · Geld · Kind**
+- De ronde oranje plusknop zit in het midden van de tabbalk en opent een sheet met snelle acties (Uitgave, Taak, Klus, Medicijn)
+- **Meer** (Eten, Agenda, Mail, Instellingen) zit achter de avatar linksboven
+- Vandaag heeft tekst-tabs **Overzicht | Te doen**: actief = groter, vet en zwart
 - Huis heeft een segmented control: **Huishouden | Klusjes**
-- Geen hamburgermenu, geen acties bovenin het scherm
+
+## Het dashboard (Vandaag)
+
+Geïnspireerd op een bento-layout met grote illustraties:
+
+1. Kop: avatar, "Hoi Michael", datum, belletje met badge
+2. **Hero-kaart** (oranje, 26 px radius) met het belangrijkste van nu: een open signaal ("Prullenbak vol" + knop "Ik doe het"), anders het avondeten. Rechts een grote platte illustratie die over de rand loopt
+3. **Bento-grid**, twee kolommen met verschillende hoogtes (224 / 176 / 132 px): Huishouden (navy), Geld (blauw), Kind (roze), Klusjes (lila, met oranje badge "2 HOOG"), Agenda (mint), Eten (perzik)
+4. Elke tegel: titel + één regel status linksboven, illustratie rechtsonder over de rand; tik = naar die module
 
 ## Interactie
 
@@ -26,37 +36,41 @@ De toets voor elk scherm: kan iemand het zonder uitleg, met één hand, binnen v
 
 ## Visuele stijl
 
-| Token | Licht | Donker | Gebruik |
-| --- | --- | --- | --- |
-| `--bg` | #f6f4f1 | #12110f | Achtergrond |
-| `--surface` | #ffffff | #1c1a17 | Kaarten, sheets |
-| `--ink` / `--ink-2` / `--ink-3` | stone 900 / 600 / 400 | omgekeerd | Tekst |
-| `--accent` | #2f6b5e (pine) | #6fb3a2 | Primaire acties, actieve tab, voortgang |
-| `--ok` `--warn` `--bad` | | | Alleen betekenis (budget over, dosis te vroeg) |
+| Token | Licht | Gebruik |
+| --- | --- | --- |
+| `--bg` | #ffffff | Canvas |
+| `--surface` | #f5f4f1 | Lijsten, kaarten zonder moduletint |
+| `--ink` / `--ink-2` / `--ink-3` | #17181f / #4f525e / #6c6f7c | Tekst |
+| `--accent` | #e8743b | Badges, actieve punt, illustraties, vinkjes |
+| `--accent-strong` | #c4521e | Knoppen met witte tekst (contrast ≥ 4.5:1) |
+| `--hero` | #e26a2f | Hero-kaart; titel wit 22/700, subtekst donkerbruin |
+| `--navy` | #1f2130 | Belangrijkste tegel (Huishouden), vandaag in het opvangrooster |
+| `--tile-*` | blauw, roze, lila, perzik, mint | Eén zachte kleur per module |
 
-- Eén accentkleur. Modules herken je aan icoon en titel, niet aan kleur
-- Font: Geist voor alles, `tabular-nums` (`.num`) voor bedragen en tijden; geen serif
-- Radius: 10 / 14 / 20 px, sheets 28 px bovenhoeken
-- Kaarten alleen waar groepering helpt; anders scheiden met witruimte of een 1px-lijn
-- Schaduw: zachte, getinte diffusieschaduw (`--shadow-card`), nooit glow
-- Iconen: Phosphor, regular; fill alleen voor de actieve tab
+- Eén accentkleur (oranje); de tegelkleuren zijn pastel en dragen nooit betekenis
+- Illustraties: platte SVG, opgebouwd uit oranje, perzik, navy en de tegelkleuren; groot (90–150 px) en deels buiten de tegel
+- Font: Geist voor alles (geen serif), `tabular-nums` (`.num`) voor bedragen en tijden
+- Radius: knop 16, kaart 22, tegel 24, hero 26, sheet 30; plusknop rond
+- Iconen: Phosphor, regular; actieve tab licht gevuld
 - Geen emoji, geen gradients op tekst, geen puur zwart
 
 ## Beweging — alleen als het iets uitlegt
 
 | Moment | Animatie | Duur |
 | --- | --- | --- |
-| Tab wisselen | View Transition: crossfade + 12px horizontale verschuiving in de richting van de tab | 220 ms |
-| Kaart → detail | Gedeeld element (`layoutId` / view-transition-name) | 300 ms |
-| Afvinken | Vinkje tekent zich, rij vervaagt en de lijst schuift dicht (`layout`) | 220 ms |
-| Signaal geven | Knop schaalt 0.96 → 1 en krijgt de "open"-staat; badge telt op | 150 ms |
-| Bottom sheet | Veer omhoog (stiffness 400, damping 36), wegvegen met slepen | — |
-| Toast | Van onderen in, na 5 s weg | 220 ms |
+| Dashboard laden | Tegels schuiven 14 px omhoog, 40 ms na elkaar | 420 ms |
+| Tekst-tab wisselen | Actieve tab schaalt naar 1,3× en kleurt zwart | 260 ms |
+| Tab wisselen | Fade + 16 px in de richting van de tab; oranje punt groeit | 280 ms |
+| Afvinken | Vinkje tekent zich, tekst grijs en doorgestreept | 260 ms |
+| Signaal geven | Puls, tegel kleurt oranje, badge telt op | 340 ms |
+| Plusknop / sheet | Plus draait naar kruis; sheet veert omhoog (`--ease-sheet`), sneller weg | 400 / 220 ms |
+| Hero | Wisselt van signaal naar avondeten zodra het signaal gedaan is | 360 ms |
+| Toast | Van onderen in, met Ongedaan maken | 300 ms |
 
 Regels:
 
-- Alleen `transform` en `opacity`; ease-out (`--ease-out`); nooit langer dan 300 ms
-- Geen animatie bij data laden, geen eindeloze loops
+- Alleen `transform` en `opacity`; ease-out (`--ease-out`); nooit langer dan 420 ms
+- De tegel-stagger alleen bij de eerste keer openen, niet bij verversen; geen eindeloze loops
 - `prefers-reduced-motion`: alles uit (staat al in `globals.css`)
 
 ## PWA

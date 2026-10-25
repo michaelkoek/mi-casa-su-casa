@@ -31,6 +31,12 @@ Een fase is pas klaar als hij een week echt gebruikt is (zie de gates in het bou
 - Tests: Vitest voor pure logica, Playwright voor kernflows
 - Hosting: Vercel (Hobby, persoonlijk gebruik), Vercel Cron voor bank-import
 
+## Huidige stand: klikbaar prototype
+
+- Alle schermen werken op lokale data: `src/lib/store.tsx` (localStorage, één toestel) met pure updaters in `src/lib/actions.ts` en logica in `src/lib/logic.ts`
+- Voorbeelddata in `src/lib/seed.ts`; types in `src/lib/types.ts` zijn de basis voor het Drizzle-schema
+- Fase 1 vervangt de store door server actions op Neon; de schermen praten alleen via `useHousehold()` en de updaters
+
 ## Harde regels
 
 - **Multi-household vanaf dag één**: elke tabel heeft `household_id`; elke query loopt via de gedeelde data-access helper die filtert op het huishouden van de ingelogde gebruiker. Nooit een `household_id` uit de client vertrouwen.
@@ -60,3 +66,4 @@ Lees `docs/design.md` vóór je UI bouwt. Gebruik de skills `frontend-design` en
 - `npm run dev` — lokaal ontwikkelen
 - `npm run build` — productie-build
 - `npm run lint` — ESLint
+- `npm test` — Vitest (pure logic in `src/lib`)
