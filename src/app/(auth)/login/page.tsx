@@ -5,7 +5,8 @@ import { Suspense } from "react";
 import { LoginForm } from "@/components/login-form";
 import { PageHeader } from "@/components/screen";
 import { SignOutButton } from "@/components/sign-out-button";
-import { getAuthState } from "@/lib/server/household";
+import { DEV_LOGIN_CODE, devLogin } from "@/lib/server/dev-login";
+import { getAuthState, listMembersForDevLogin } from "@/lib/server/household";
 
 async function LoginGate() {
   const state = await getAuthState();
@@ -20,7 +21,8 @@ async function LoginGate() {
       </div>
     );
   }
-  return <LoginForm />;
+  const dev = devLogin ? { code: DEV_LOGIN_CODE, members: await listMembersForDevLogin() } : undefined;
+  return <LoginForm dev={dev} />;
 }
 
 export default async function LoginPage() {

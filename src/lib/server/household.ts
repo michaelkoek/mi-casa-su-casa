@@ -77,6 +77,12 @@ export async function isMemberEmail(email: string): Promise<boolean> {
   return !!row;
 }
 
+/** Unscoped list of all members, for the one-tap login on localhost only. */
+export async function listMembersForDevLogin(): Promise<{ name: string; email: string }[]> {
+  if (process.env.NODE_ENV !== "development") throw new Error("Dev login is only available in next dev");
+  return db.select({ name: members.name, email: members.email }).from(members).orderBy(members.name);
+}
+
 /** The only way to build a WHERE clause for a household table. */
 export function scope(ctx: HouseholdContext) {
   return {

@@ -411,7 +411,11 @@
     "noAccessTitle": "Geen toegang",
     "noAccess": "{email} hoort niet bij een huishouden. Log uit en probeer een ander e-mailadres.",
     "signOut": "Uitloggen",
-    "serverError": "Er ging iets mis. Probeer het zo opnieuw."
+    "serverError": "Er ging iets mis. Probeer het zo opnieuw.",
+    "devTitle": "Ontwikkelmodus (alleen localhost)",
+    "devHint": "Geen mail nodig: tik op een lid om direct in te loggen. Inloggen met e-mail werkt ook, de code is altijd {code}.",
+    "devAs": "Inloggen als {name} ({email})",
+    "devNoMembers": "Nog geen leden in de dev-database. Draai eerst npm run db:bootstrap."
   },
   "email": {
     "subject": "Je code voor Mi casa: {code}",

@@ -5,6 +5,7 @@ import { nextCookies } from "better-auth/next-js";
 import { emailOTP } from "better-auth/plugins";
 import { db } from "@/db";
 import * as authTables from "@/db/auth-schema";
+import { DEV_LOGIN_CODE, devLogin } from "@/lib/server/dev-login";
 import { baseUrl, env } from "@/lib/server/env";
 import { isMemberEmail } from "@/lib/server/household";
 import { sendLoginCode } from "@/lib/server/mail";
@@ -39,6 +40,8 @@ export const auth = betterAuth({
       otpLength: 6,
       expiresIn: 600,
       allowedAttempts: 5,
+      // Fixed code on localhost so you can log in without mail (see dev-login.ts).
+      ...(devLogin ? { generateOTP: () => DEV_LOGIN_CODE } : {}),
       async sendVerificationOTP({ email, otp, type }) {
         // Same behaviour for unknown emails: no mail, no error.
         if (type !== "sign-in" || !(await isMemberEmail(email))) return;

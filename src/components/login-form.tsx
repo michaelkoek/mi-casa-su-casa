@@ -34,8 +34,10 @@ function mapError(error: AuthError, step: FormState["step"]): ErrorKey {
   return "wrongCode";
 }
 
-/** Two steps: email, then the 6-digit code that was mailed. */
-export function LoginForm() {
+type DevLogin = { code: string; members: { name: string; email: string }[] };
+
+/** Two steps: email, then the 6-digit code that was mailed. `dev` (next dev only) adds one-tap login per member. */
+export function LoginForm({ dev }: { dev?: DevLogin }) {
   const t = useTranslations("auth");
   const [s, setS] = useState<FormState>({ step: "email", email: "", code: "", error: null, busy: false, resendAt: 0 });
   const [now, setNow] = useState(() => Date.now());
@@ -86,8 +88,36 @@ export function LoginForm() {
     }
   };
 
+  const devSignIn = async (email: string) => {
+    if (!dev) return;
+    setS((p) => ({ ...p, email, busy: true, error: null }));
+    try {
+      const sent = await authClient.emailOtp.sendVerificationOtp({ email, type: "sign-in" });
+      const res = sent.error ? sent : await authClient.signIn.emailOtp({ email, otp: dev.code });
+      if (res.error) {
+        setS((p) => ({ ...p, busy: false, error: mapError(res.error, "email") }));
+        return;
+      }
+      hardNavigate("/");
+    } catch {
+      setS((p) => ({ ...p, busy: false, error: "network" }));
+    }
+  };
+
   return (
     <MotionConfig reducedMotion="user">
+    {dev && s.step === "email" && (
+      <section className="mb-6 flex flex-col gap-2 rounded-2xl border border-dashed border-ink-3 p-4">
+        <h2 className="text-sm font-semibold">{t("devTitle")}</h2>
+        <p className="text-sm text-ink-2">{t("devHint", { code: dev.code })}</p>
+        {dev.members.length === 0 && <p className="text-sm text-ink-2">{t("devNoMembers")}</p>}
+        {dev.members.map((m) => (
+          <SoftButton key={m.email} disabled={s.busy} onClick={() => void devSignIn(m.email)}>
+            {t("devAs", { name: m.name, email: m.email })}
+          </SoftButton>
+        ))}
+      </section>
+    )}
     <AnimatePresence mode="wait" initial={false}>
       {s.step === "email" ? (
         <motion.form
