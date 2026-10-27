@@ -6,7 +6,7 @@ import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
 import { doneChore, toggleSignal, toggleTask } from "@/lib/actions";
-import { budgetSummary, formatEuro, formatTime, minutesAgo, nextAssignee, toDateKey, weekdayName as dayShort } from "@/lib/logic";
+import { budgetSummary, formatEuro, formatTime, minutesAgo, missingIngredients, nextAssignee, toDateKey, weekdayName as dayShort } from "@/lib/logic";
 import { useHousehold, useMemberName, useNow } from "@/lib/store";
 import { Checkbox } from "../form";
 import { BinArt, BlocksArt, CalendarArt, LaundryArt, PiggyArt, PlateArt, PumpkinArt, ToolboxArt } from "../illustrations";
@@ -113,7 +113,7 @@ function Hero() {
   const today = toDateKey(now);
   const signal = state.signals.find((s) => s.openedAt);
   const meal = state.mealPlan.find((m) => m.date === today);
-  const recipe = meal && state.recipes.find((r) => r.id === meal.recipeId);
+  const recipe = meal?.recipeId ? state.recipes.find((r) => r.id === meal.recipeId) : undefined;
 
   const shell = (key: string, eyebrow: string, title: string, sub: string, action: ReactNode, art: ReactNode) => (
     <section key={key} className="pop relative flex min-h-[150px] flex-col justify-between overflow-hidden rounded-[26px] bg-hero p-5 text-white">
@@ -142,13 +142,15 @@ function Hero() {
       <BinArt />,
     );
   }
-  if (recipe && meal) {
+  if (meal) {
     return shell(
       "meal",
       meal.cookId === state.me ? t("mealEyebrowMe") : t("mealEyebrowOther", { name: nameOf(meal.cookId) }),
-      recipe.name,
-      t("mealSub", { count: recipe.ingredients.length }),
-      <Link href="/meer/eten" transitionTypes={["nav-forward"]} className={btn}>
+      meal.title,
+      recipe && recipe.ingredients.length > 0
+        ? t("mealSub", { count: missingIngredients(recipe.ingredients, state.shopping).length })
+        : t("mealSubPlain"),
+      <Link href="/meer/boodschappen" transitionTypes={["nav-forward"]} className={btn}>
         {t("toShopping")} <ArrowRight size={16} weight="bold" />
       </Link>,
       <PlateArt />,
@@ -159,7 +161,7 @@ function Hero() {
     t("emptyEyebrow"),
     t("emptyTitle"),
     t("emptySub"),
-    <Link href="/meer/eten" transitionTypes={["nav-forward"]} className={btn}>
+    <Link href="/meer/boodschappen" transitionTypes={["nav-forward"]} className={btn}>
       {t("planMeal")} <ArrowRight size={16} weight="bold" />
     </Link>,
     <PlateArt />,
@@ -191,7 +193,7 @@ function Bento({ openCount }: { openCount: number }) {
   const openProjects = state.projects.filter((p) => p.status !== "done");
   const high = openProjects.filter((p) => p.priority === "high").length;
   const doing = openProjects.find((p) => p.status === "doing");
-  const shopping = state.shopping.filter((s) => !s.checked).length;
+  const toBuy = state.shopping.filter((s) => !s.checked);
 
   return (
     <div className="grid grid-cols-2 items-start gap-2.5">
@@ -202,7 +204,7 @@ function Bento({ openCount }: { openCount: number }) {
         <Tile href="/kind" tone="bg-tile-child" h="h-44" i={2} title={t("child")} sub={careLabel}>
           <BlocksArt />
         </Tile>
-        <Tile href="/meer/agenda" tone="bg-tile-agenda" h="h-[132px]" i={4} title={t("agenda")}
+        <Tile href="/meer/agenda" tone="bg-tile-agenda" h="h-44" i={4} title={t("agenda")}
           sub={nextEvent ? `${nextEvent.allDay ? t("allDay") : formatTime(nextEvent.start)} ${nextEvent.title}` : t("agendaEmpty")}>
           <CalendarArt day={now.getDate()} />
         </Tile>
@@ -212,12 +214,15 @@ function Bento({ openCount }: { openCount: number }) {
           sub={food ? t("moneySub", { spent: formatEuro(food.spentCents, true), budget: formatEuro(food.category.budgetCents, true) }) : ""}>
           <PiggyArt />
         </Tile>
-        <Tile href="/huis?tab=klusjes" tone="bg-tile-jobs" h="h-56" i={3} title={t("projects")}
+        <Tile href="/huis?tab=klusjes" tone="bg-tile-jobs" h="h-44" i={3} title={t("projects")}
           sub={doing ? t("projectsSubDoing", { count: openProjects.length, title: doing.title }) : t("projectsSub", { count: openProjects.length })}
           badge={high > 0 ? t("highBadge", { count: high }) : undefined}>
           <ToolboxArt />
         </Tile>
-        <Tile href="/meer/eten" tone="bg-tile-food" h="h-[132px]" i={5} title={t("food")} sub={t("foodSub", { count: shopping })}>
+        <Tile href="/meer/boodschappen" tone="bg-tile-food" h="h-56" i={5} title={t("shopping")} sub={t("shoppingSub", { count: toBuy.length })}
+          detail={toBuy.length > 0
+            ? toBuy.slice(0, 3).map((x) => x.name).join(" · ") + (toBuy.length > 3 ? " " + t("shoppingMore", { count: toBuy.length - 3 }) : "")
+            : undefined}>
           <PumpkinArt />
         </Tile>
       </div>
@@ -227,13 +232,16 @@ function Bento({ openCount }: { openCount: number }) {
 
 
 function Tile({
-  href, tone, h, i, title, sub, subTone, badge, children,
-}: { href: string; tone: string; h: string; i: number; title: string; sub: string; subTone?: string; badge?: string; children: ReactNode }) {
+  href, tone, h, i, title, sub, detail, subTone, badge, children,
+}: { href: string; tone: string; h: string; i: number; title: string; sub: string; detail?: string; subTone?: string; badge?: string; children: ReactNode }) {
   return (
     <Link href={href} transitionTypes={["nav-forward"]} style={{ ["--i" as string]: i }}
       className={clsx("press rise relative flex flex-col gap-1 overflow-hidden rounded-[24px] p-4", tone, h)}>
       <span className="relative z-10 max-w-[11ch] text-[15px] font-semibold leading-tight">{title}</span>
       <span className={clsx("relative z-10 text-xs font-medium", subTone ?? "text-ink-2")}>{sub}</span>
+      {detail && (
+        <span className="relative z-10 mt-1 line-clamp-3 max-w-[15ch] text-[13px] font-medium leading-snug text-ink">{detail}</span>
+      )}
       {badge && (
         <span className="absolute right-3.5 top-3.5 z-10 rounded-full bg-accent px-2 py-0.5 text-[10px] font-bold tracking-wide text-white">{badge}</span>
       )}

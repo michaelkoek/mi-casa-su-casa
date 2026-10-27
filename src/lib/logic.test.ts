@@ -5,11 +5,18 @@ import {
   categorize,
   completeChore,
   doseProgress,
+  findRecipeByName,
   formatDuration,
+  missingIngredients,
   nextAssignee,
   nextDoseAllowedAt,
+  normalizeItem,
   parseEuroToCents,
+  parseIngredients,
+  suggestMeals,
 } from "./logic";
+import { createSeed } from "./seed";
+import type { Recipe, ShoppingItem } from "./types";
 import type { Category, Chore, Dose, Medicine, Transaction } from "./types";
 
 const paracetamol: Medicine = { id: "para", name: "Paracetamol", intervalHours: 6 };
@@ -105,5 +112,51 @@ describe("helpers", () => {
     expect(formatDuration(160 * 60000)).toBe("2 u 40 min");
     expect(formatDuration(15 * 60000)).toBe("15 min");
     expect(formatDuration(-5)).toBe("0 min");
+  });
+});
+
+describe("shopping logic", () => {
+  const seed = createSeed(new Date("2026-10-24T14:00:00"));
+  const item = (name: string, checked: boolean): ShoppingItem => ({ id: name, name, checked, source: "manual" });
+  const recipe = (name: string, ingredients: string[]): Recipe => ({ id: name, name, ingredients });
+
+  it("normalizes names", () => {
+    expect(normalizeItem("  Melk ")).toBe("melk");
+  });
+
+  it("parses ingredients", () => {
+    expect(parseIngredients("Pasta, tomaat\n basilicum,,pasta ")).toEqual(["Pasta", "tomaat", "basilicum"]);
+    expect(parseIngredients("x".repeat(120))[0]).toHaveLength(100);
+    expect(parseIngredients(Array.from({ length: 60 }, (_, i) => `n${i}`).join(","))).toHaveLength(50);
+  });
+
+  it("finds a recipe by name", () => {
+    expect(findRecipeByName(seed.recipes, "  linzensoep ")?.id).toBe("rc3");
+    expect(findRecipeByName(seed.recipes, "")).toBeUndefined();
+  });
+
+  it("lists ingredients that are not in huis", () => {
+    expect(missingIngredients(["Penne", "Salie"], seed.shopping)).toEqual(["Salie"]);
+    expect(missingIngredients(["Melk"], [item("melk", false)])).toEqual(["Melk"]);
+  });
+
+  it("ranks suggestions", () => {
+    const shopping = ["a", "b", "c", "d"].map((n) => item(n, true));
+    const out = suggestMeals(
+      [
+        recipe("Leeg", []),
+        recipe("Half", ["a", "x"]),
+        recipe("Vier van vijf", ["a", "b", "c", "d", "e"]),
+        recipe("Compleet", ["a", "b"]),
+        recipe("Bijna", ["a", "b", "x"]),
+        recipe("Aaa half", ["a", "y"]),
+      ],
+      shopping,
+    );
+    expect(out.map((s) => s.recipe.name)).toEqual(["Compleet", "Vier van vijf", "Bijna", "Aaa half", "Half"]);
+    const four = out.find((s) => s.recipe.name === "Vier van vijf")!;
+    expect(four.have).toEqual(["a", "b", "c", "d"]);
+    expect(four.missing).toEqual(["e"]);
+    expect(four.score).toBeCloseTo(0.8);
   });
 });

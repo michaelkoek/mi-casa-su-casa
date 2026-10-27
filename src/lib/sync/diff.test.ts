@@ -30,9 +30,13 @@ const cases: Record<string, (s: HouseholdState) => HouseholdState> = {
   cycleCare: actions.cycleCare(1, "bring"),
   toggleShopping: actions.toggleShopping("s1"),
   addShopping: actions.addShopping("Brood"),
-  clearCheckedShopping: actions.clearCheckedShopping,
-  recipeToShopping: actions.recipeToShopping("rc2"),
-  planMeal: actions.planMeal(seed.mealPlan[0].date, "rc3", "m2"),
+  needItems: actions.needItems(["Penne", "Brood"], "manual"),
+  deleteShopping: actions.deleteShopping("s3"),
+  missingToShopping: actions.missingToShopping(["Penne", "Ui"]),
+  planMeal: actions.planMeal(seed.mealPlan[0].date, { title: "Linzensoep", recipeId: "rc3", cookId: "m2" }),
+  clearMeal: actions.clearMeal(seed.mealPlan[0].date),
+  saveRecipe: actions.saveRecipe("Shakshuka", ["Eieren", "Tomaat"], "rc9"),
+  planDay: actions.planDay(seed.mealPlan[0].date, { title: "Shakshuka", ingredients: ["Eieren", "Tomaat"], cookId: "m1" }),
   renameMember: actions.renameMember("m2", "Sanne"),
   addMilestone: actions.addMilestone("Eerste woordje", "2026-10-20"),
   claimCare: actions.claimCare(3, "bring", "m2"),
@@ -74,8 +78,8 @@ describe("diffState / applyChangeset", () => {
     expect(changes[0]).toMatchObject({ op: "insert", c: "tasks" });
   });
 
-  it("clearCheckedShopping gives deletes plus position updates", () => {
-    const changes = diffState(seed, actions.clearCheckedShopping(seed));
+  it("deleteShopping gives deletes plus position updates", () => {
+    const changes = diffState(seed, actions.deleteShopping("s3")(seed));
     expect(changes.filter((c) => c.op === "delete")).toEqual([{ op: "delete", c: "shopping", key: "s3" }]);
     const updates = changes.filter((c) => c.op === "update");
     expect(updates.length).toBeGreaterThan(0);
@@ -84,8 +88,8 @@ describe("diffState / applyChangeset", () => {
 
   it("planMeal updates the key date; cycleCare updates the key as a weekday string", () => {
     const date = seed.mealPlan[0].date;
-    const meal = diffState(seed, actions.planMeal(date, "rc3", "m1")(seed));
-    expect(meal).toEqual([{ op: "update", c: "mealPlan", key: date, patch: { recipeId: "rc3" } }]);
+    const meal = diffState(seed, actions.planMeal(date, { title: "Linzensoep", recipeId: "rc3", cookId: "m1" })(seed));
+    expect(meal).toEqual([{ op: "update", c: "mealPlan", key: date, patch: { title: "Linzensoep", recipeId: "rc3" } }]);
     const care = diffState(seed, actions.cycleCare(1, "bring")(seed));
     expect(care[0]).toMatchObject({ op: "update", c: "care", key: "1" });
   });

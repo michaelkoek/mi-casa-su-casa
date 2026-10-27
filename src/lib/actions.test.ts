@@ -4,8 +4,15 @@ import {
   claimCare,
   cycleStock,
   cycleCare,
+  addShopping,
+  clearMeal,
+  deleteShopping,
   materialsToShopping,
-  recipeToShopping,
+  missingToShopping,
+  needItems,
+  planDay,
+  planMeal,
+  saveRecipe,
   toggleSignal,
   toggleTask,
 } from "./actions";
@@ -38,13 +45,85 @@ describe("actions", () => {
     expect(noRule.rules).toHaveLength(s.rules.length);
   });
 
-  it("adds missing recipe ingredients without duplicates", () => {
+  it("needItems is a no-op for an unchecked existing name", () => {
     const s = createSeed(now);
-    const next = recipeToShopping("rc1")(s);
-    const names = next.shopping.filter((i) => !i.checked).map((i) => i.name);
-    expect(names.filter((n) => n === "Flespompoen")).toHaveLength(1);
-    expect(names).toContain("Parmezaan");
-    expect(names).toContain("Penne"); // the checked one counts as bought, so it goes back on the list
+    expect(needItems(["melk"], "manual")(s)).toBe(s);
+  });
+
+  it("needItems puts an in-huis item back on halen and keeps its id", () => {
+    const s = createSeed(now);
+    const next = needItems(["penne"], "manual")(s);
+    expect(next.shopping.find((i) => i.id === "s3")).toMatchObject({ name: "Penne", checked: false, source: "recipe" });
+    expect(next.shopping).toHaveLength(s.shopping.length);
+  });
+
+  it("needItems appends new names once with the given source", () => {
+    const next = needItems(["Ui", "ui", " Ui "], "recipe")(createSeed(now));
+    const ui = next.shopping.filter((i) => i.name === "Ui");
+    expect(ui).toHaveLength(1);
+    expect(ui[0]).toMatchObject({ checked: false, source: "recipe" });
+  });
+
+  it("addShopping adds no duplicate", () => {
+    const s = createSeed(now);
+    expect(addShopping("Melk")(s).shopping.filter((i) => i.name.toLowerCase() === "melk")).toHaveLength(1);
+  });
+
+  it("deleteShopping removes only that item", () => {
+    const s = createSeed(now);
+    const next = deleteShopping("s3")(s);
+    expect(next.shopping.map((i) => i.id)).toEqual(s.shopping.filter((i) => i.id !== "s3").map((i) => i.id));
+  });
+
+  it("missingToShopping skips what is in huis", () => {
+    const next = missingToShopping(["Penne", "Salie", "Ui"])(createSeed(now));
+    expect(next.shopping.find((i) => i.id === "s3")?.checked).toBe(true);
+    expect(next.shopping.filter((i) => i.name === "Salie")).toHaveLength(1);
+    expect(next.shopping.find((i) => i.name === "Ui")).toMatchObject({ checked: false, source: "recipe" });
+  });
+
+  it("planMeal replaces a date and keeps the plan sorted; clearMeal removes only that date", () => {
+    const s = createSeed(now);
+    const d = s.mealPlan[1].date;
+    const next = planMeal(d, { title: "Pizza", recipeId: null, cookId: "m1" })(s);
+    expect(next.mealPlan).toHaveLength(s.mealPlan.length);
+    expect(next.mealPlan.find((m) => m.date === d)).toMatchObject({ title: "Pizza", recipeId: null });
+    const dates = next.mealPlan.map((m) => m.date);
+    expect(dates).toEqual([...dates].sort());
+    const cleared = clearMeal(d)(s);
+    expect(cleared.mealPlan.map((m) => m.date)).toEqual(s.mealPlan.map((m) => m.date).filter((x) => x !== d));
+    expect(clearMeal("2000-01-01")(s)).toBe(s);
+  });
+
+  it("saveRecipe appends a new recipe and updates an existing one by name", () => {
+    const s = createSeed(now);
+    const added = saveRecipe("Shakshuka", ["Eieren"], "rc9")(s);
+    expect(added.recipes.at(-1)).toEqual({ id: "rc9", name: "Shakshuka", ingredients: ["Eieren"] });
+    const updated = saveRecipe(" linzensoep ", ["Linzen", "Ui"], "rc10")(s);
+    expect(updated.recipes).toHaveLength(s.recipes.length);
+    expect(updated.recipes.find((r) => r.id === "rc3")).toEqual({ id: "rc3", name: "Linzensoep", ingredients: ["Linzen", "Ui"] });
+    expect(saveRecipe("  ", ["x"])(s)).toBe(s);
+  });
+
+  it("planDay with ingredients creates a recipe, plans it and lists only what is missing", () => {
+    const s = createSeed(now);
+    const date = s.mealPlan[0].date;
+    const next = planDay(date, { title: "Shakshuka", ingredients: ["Eieren", "Penne"], cookId: "m2" })(s);
+    const recipe = next.recipes.find((r) => r.name === "Shakshuka");
+    expect(recipe).toBeDefined();
+    expect(next.mealPlan.find((m) => m.date === date)).toEqual({ date, title: "Shakshuka", recipeId: recipe!.id, cookId: "m2" });
+    expect(next.shopping.find((i) => i.name === "Eieren")).toMatchObject({ checked: false, source: "recipe" });
+    expect(next.shopping.find((i) => i.id === "s3")?.checked).toBe(true);
+  });
+
+  it("planDay without ingredients leaves recipes and shopping alone", () => {
+    const s = createSeed(now);
+    const date = s.mealPlan[0].date;
+    const next = planDay(date, { title: "Friet", ingredients: [], cookId: "m1" })(s);
+    expect(next.mealPlan.find((m) => m.date === date)).toMatchObject({ title: "Friet", recipeId: null });
+    expect(next.recipes).toBe(s.recipes);
+    expect(next.shopping).toBe(s.shopping);
+    expect(planDay(date, { title: "  ", ingredients: ["x"], cookId: "m1" })(s)).toBe(s);
   });
 
   it("puts unbought project materials on the shopping list once", () => {

@@ -5,6 +5,8 @@ import type {
   Dose,
   MemberId,
   Medicine,
+  Recipe,
+  ShoppingItem,
   Transaction,
 } from "./types";
 
@@ -125,4 +127,60 @@ export function uid(prefix: string): string {
 export function weekdayName(weekday: number, style: "short" | "long" = "short"): string {
   const d = new Date(2026, 0, 4 + weekday); // 4 Jan 2026 is a Sunday
   return d.toLocaleDateString("nl-NL", { weekday: style }).replace(".", "");
+}
+
+/** Comparison key for item and recipe names: trimmed and lowercased. */
+export function normalizeItem(name: string): string {
+  return name.trim().toLowerCase();
+}
+
+/** Trims each name, cuts it to 100 chars, drops empties, dedupes on normalizeItem (keeps the first spelling), keeps at most `max`. */
+export function cleanNames(names: string[], max = 50): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of names) {
+    const name = raw.trim().slice(0, 100).trim();
+    const key = normalizeItem(name);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(name);
+    if (out.length >= max) break;
+  }
+  return out;
+}
+
+/** "Pasta, tomaat\nbasilicum" -> ["Pasta", "tomaat", "basilicum"]: split on comma or newline, then cleanNames. */
+export function parseIngredients(text: string): string[] {
+  return cleanNames(text.split(/[,\n]/));
+}
+
+/** Recipe whose normalized name equals the normalized input, or undefined (empty input -> undefined). */
+export function findRecipeByName(recipes: Recipe[], name: string): Recipe | undefined {
+  const key = normalizeItem(name);
+  if (!key) return undefined;
+  return recipes.find((r) => normalizeItem(r.name) === key);
+}
+
+/** Ingredients that are not "in huis" (no shopping item with checked=true and the same normalized name). */
+export function missingIngredients(ingredients: string[], shopping: ShoppingItem[]): string[] {
+  const inHouse = new Set(shopping.filter((i) => i.checked).map((i) => normalizeItem(i.name)));
+  return ingredients.filter((n) => !inHouse.has(normalizeItem(n)));
+}
+
+export type MealSuggestion = { recipe: Recipe; have: string[]; missing: string[]; score: number };
+
+/** Ranks recipes by how much of them is in huis; recipes without ingredients are left out. */
+export function suggestMeals(recipes: Recipe[], shopping: ShoppingItem[]): MealSuggestion[] {
+  return recipes
+    .filter((r) => r.ingredients.length > 0)
+    .map((recipe) => {
+      const missing = missingIngredients(recipe.ingredients, shopping);
+      const missingSet = new Set(missing);
+      const have = recipe.ingredients.filter((n) => !missingSet.has(n));
+      return { recipe, have, missing, score: have.length / recipe.ingredients.length };
+    })
+    .sort(
+      (a, b) =>
+        b.score - a.score || a.missing.length - b.missing.length || a.recipe.name.localeCompare(b.recipe.name, "nl"),
+    );
 }

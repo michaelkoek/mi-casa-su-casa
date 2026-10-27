@@ -151,10 +151,10 @@ export function createSeed(now = new Date()): HouseholdState {
       { id: "rc4", name: "Wraps met kip", ingredients: ["Wraps", "Kipfilet", "Avocado", "Sla", "Tomaat"] },
     ],
     mealPlan: [
-      { date: today, recipeId: "rc1", cookId: "m1" },
-      { date: addDays(today, 1), recipeId: "rc2", cookId: "m2" },
-      { date: addDays(today, 2), recipeId: "rc3", cookId: "m1" },
-      { date: addDays(today, 3), recipeId: "rc4", cookId: "m2" },
+      { date: today, title: "Pompoenpasta met salie", recipeId: "rc1", cookId: "m1" },
+      { date: addDays(today, 1), title: "Ovenschotel met zalm", recipeId: "rc2", cookId: "m2" },
+      { date: addDays(today, 2), title: "Linzensoep", recipeId: "rc3", cookId: "m1" },
+      { date: addDays(today, 3), title: "Wraps met kip", recipeId: "rc4", cookId: "m2" },
     ],
     shopping: [
       { id: "s1", name: "Flespompoen", checked: false, source: "recipe" },

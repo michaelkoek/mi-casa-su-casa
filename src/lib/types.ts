@@ -70,7 +70,7 @@ export type Temperature = { id: string; celsius: number; at: string };
 export type Appointment = { id: string; title: string; at: string; place: string | null };
 
 export type Recipe = { id: string; name: string; ingredients: string[] };
-export type MealPlanEntry = { date: string; recipeId: string; cookId: MemberId };
+export type MealPlanEntry = { date: string; title: string; recipeId: string | null; cookId: MemberId };
 export type ShoppingItem = { id: string; name: string; checked: boolean; source: "manual" | "recipe" | "project" | "stock" };
 
 export type CalendarEvent = { id: string; title: string; start: string; allDay: boolean };

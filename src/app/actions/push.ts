@@ -4,7 +4,7 @@ import { headers } from "next/headers";
 import { getTranslations } from "next-intl/server";
 import { z } from "zod";
 import { requireHouseholdForAction } from "@/lib/server/household";
-import { removeSubscription, saveSubscription, sendPushToMembers } from "@/lib/server/push";
+import { listMembers, removeSubscription, saveSubscription, sendPushToMembers } from "@/lib/server/push";
 
 const subscriptionSchema = z.object({
   endpoint: z.url({ protocol: /^https$/ }).max(1000),
@@ -53,6 +53,30 @@ export async function sendTestPush(): Promise<
     return { ok: false, error: r.failed > 0 ? "failed" : "no-subscriptions" };
   } catch {
     console.error("sendTestPush failed");
+    return { ok: false, error: "failed" };
+  }
+}
+
+export async function notifyShoppingTrip(): Promise<
+  { ok: true; sent: number } | { ok: false; error: "unauthorized" | "failed" }
+> {
+  const ctx = await requireHouseholdForAction();
+  if (!ctx) return { ok: false, error: "unauthorized" };
+  try {
+    const rows = await listMembers(ctx);
+    const name = rows.find((m) => m.id === ctx.memberId)?.name ?? "";
+    const others = rows.filter((m) => m.id !== ctx.memberId).map((m) => m.id);
+    if (others.length === 0) return { ok: true, sent: 0 };
+    const t = await getTranslations("shopping.push");
+    const r = await sendPushToMembers(ctx, others, {
+      title: t("title", { name }),
+      body: t("body"),
+      url: "/meer/boodschappen",
+      tag: "shopping-trip",
+    });
+    return { ok: true, sent: r.sent };
+  } catch {
+    console.error("notifyShoppingTrip failed");
     return { ok: false, error: "failed" };
   }
 }

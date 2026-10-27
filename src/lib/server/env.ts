@@ -55,6 +55,14 @@ export function mailEnv() {
   return parse(mail, "mail");
 }
 
+const ai = z.object({ ANTHROPIC_API_KEY: z.string().min(1) });
+
+/** Anthropic key for "Verras me", or null when not set (the feature then reports "unavailable"). */
+export function aiEnv(): { ANTHROPIC_API_KEY: string } | null {
+  if (!process.env.ANTHROPIC_API_KEY) return null;
+  return parse(ai, "ai");
+}
+
 export function pushEnv() {
   return parse(push, "push");
 }

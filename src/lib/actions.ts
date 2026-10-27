@@ -1,4 +1,4 @@
-import { completeChore, toDateKey, uid } from "./logic";
+import { cleanNames, completeChore, findRecipeByName, missingIngredients, normalizeItem, toDateKey, uid } from "./logic";
 import type {
   CareDay,
   CareSlot,
@@ -9,9 +9,12 @@ import type {
   Priority,
   ProjectKind,
   ProjectStatus,
+  ShoppingItem,
 } from "./types";
 
 /* Pure state updaters. Each one returns a new household state. */
+
+type ShoppingSource = ShoppingItem["source"];
 
 export const toggleTask = (id: string, now: Date) => (s: S): S => ({
   ...s,
@@ -65,15 +68,11 @@ export const toggleMaterial = (projectId: string, materialId: string) => (s: S):
   ),
 });
 
-/** Puts every not-yet-bought material of a project on the shopping list (no duplicates). */
+/** Puts every not-yet-bought material of a project on "halen" (no duplicates). */
 export const materialsToShopping = (projectId: string) => (s: S): S => {
   const project = s.projects.find((p) => p.id === projectId);
   if (!project) return s;
-  const existing = new Set(s.shopping.filter((i) => !i.checked).map((i) => i.name.toLowerCase()));
-  const add = project.materials
-    .filter((m) => !m.bought && !existing.has(m.name.toLowerCase()))
-    .map((m) => ({ id: uid("s"), name: m.name, checked: false, source: "project" as const }));
-  return { ...s, shopping: [...s.shopping, ...add] };
+  return needItems(project.materials.filter((m) => !m.bought).map((m) => m.name), "project")(s);
 };
 
 export const categorizeTransaction = (txId: string, categoryId: string, remember: boolean) => (s: S): S => {
@@ -141,28 +140,73 @@ export const toggleShopping = (id: string) => (s: S): S => ({
   shopping: s.shopping.map((i) => (i.id === id ? { ...i, checked: !i.checked } : i)),
 });
 
-export const addShopping = (name: string) => (s: S): S => ({
-  ...s,
-  shopping: [...s.shopping, { id: uid("s"), name, checked: false, source: "manual" }],
-});
-
-export const clearCheckedShopping = (s: S): S => ({ ...s, shopping: s.shopping.filter((i) => !i.checked) });
-
-/** Adds a recipe's ingredients to the shopping list, skipping ones already on it. */
-export const recipeToShopping = (recipeId: string) => (s: S): S => {
-  const recipe = s.recipes.find((r) => r.id === recipeId);
-  if (!recipe) return s;
-  const existing = new Set(s.shopping.filter((i) => !i.checked).map((i) => i.name.toLowerCase()));
-  const add = recipe.ingredients
-    .filter((n) => !existing.has(n.toLowerCase()))
-    .map((name) => ({ id: uid("s"), name, checked: false, source: "recipe" as const }));
-  return { ...s, shopping: [...s.shopping, ...add] };
+/**
+ * The one way to put things on "halen": existing items with the same name are set back to unchecked,
+ * new names are appended. Never creates duplicates. Returns the same state when nothing changes.
+ */
+export const needItems = (names: string[], source: ShoppingSource) => (s: S): S => {
+  let changed = false;
+  let shopping = s.shopping;
+  for (const name of cleanNames(names)) {
+    const key = normalizeItem(name);
+    if (shopping.some((i) => normalizeItem(i.name) === key)) {
+      if (shopping.some((i) => normalizeItem(i.name) === key && i.checked)) {
+        shopping = shopping.map((i) => (normalizeItem(i.name) === key && i.checked ? { ...i, checked: false } : i));
+        changed = true;
+      }
+    } else {
+      shopping = [...shopping, { id: uid("s"), name, checked: false, source }];
+      changed = true;
+    }
+  }
+  return changed ? { ...s, shopping } : s;
 };
 
-export const planMeal = (date: string, recipeId: string, cookId: MemberId) => (s: S): S => ({
+export const addShopping = (name: string) => needItems([name], "manual");
+
+/** Permanently removes one item. */
+export const deleteShopping = (id: string) => (s: S): S => ({ ...s, shopping: s.shopping.filter((i) => i.id !== id) });
+
+/** Puts only ingredients that are not in huis on "halen". */
+export const missingToShopping = (ingredients: string[]) => (s: S): S =>
+  needItems(missingIngredients(ingredients, s.shopping), "recipe")(s);
+
+/** Replaces the entry for `date` and keeps mealPlan sorted by date. */
+export const planMeal = (date: string, meal: { title: string; recipeId: string | null; cookId: MemberId }) => (s: S): S => ({
   ...s,
-  mealPlan: [...s.mealPlan.filter((m) => m.date !== date), { date, recipeId, cookId }].sort((a, b) => a.date.localeCompare(b.date)),
+  mealPlan: [...s.mealPlan.filter((m) => m.date !== date), { date, ...meal }].sort((a, b) => a.date.localeCompare(b.date)),
 });
+
+/** Removes the entry for `date` (no-op when there is none). */
+export const clearMeal = (date: string) => (s: S): S =>
+  s.mealPlan.some((m) => m.date === date) ? { ...s, mealPlan: s.mealPlan.filter((m) => m.date !== date) } : s;
+
+/** Upserts a recipe by normalized name; an existing match keeps its id, name and position. */
+export const saveRecipe = (name: string, ingredients: string[], newId = uid("rc")) => (s: S): S => {
+  const title = name.trim().slice(0, 100);
+  if (!title) return s;
+  const list = cleanNames(ingredients);
+  const existing = findRecipeByName(s.recipes, title);
+  if (existing) {
+    return { ...s, recipes: s.recipes.map((r) => (r.id === existing.id ? { ...r, ingredients: list } : r)) };
+  }
+  return { ...s, recipes: [...s.recipes, { id: newId, name: title, ingredients: list }] };
+};
+
+/** Opslaan of the plan sheet as one updater (one changeset, one undo). */
+export const planDay = (date: string, input: { title: string; ingredients: string[]; cookId: MemberId }) => (s: S): S => {
+  const title = input.title.trim().slice(0, 100);
+  if (!title) return s;
+  const ingredients = cleanNames(input.ingredients);
+  const existing = findRecipeByName(s.recipes, title);
+  if (ingredients.length === 0) {
+    return planMeal(date, { title, recipeId: existing?.id ?? null, cookId: input.cookId })(s);
+  }
+  const recipeId = existing?.id ?? uid("rc");
+  return missingToShopping(ingredients)(
+    planMeal(date, { title, recipeId, cookId: input.cookId })(saveRecipe(title, ingredients, recipeId)(s)),
+  );
+};
 
 export const renameMember = (id: MemberId, name: string) => (s: S): S => ({
   ...s,
@@ -196,17 +240,13 @@ export const setSize = (id: string, size: string, note: string | null) => (s: S)
 
 const NEXT_LEVEL: Record<StockLevel, StockLevel> = { full: "half", half: "low", low: "full" };
 
-/** Cycles a stock level; reaching "low" puts the item on the shopping list (once). */
+/** Cycles a stock level; reaching "low" puts the item on "halen" (once). */
 export const cycleStock = (id: string) => (s: S): S => {
   const item = s.stock.find((x) => x.id === id);
   if (!item) return s;
   const level = NEXT_LEVEL[item.level];
-  const onList = s.shopping.some((x) => !x.checked && x.name.toLowerCase() === item.name.toLowerCase());
-  const shopping =
-    level === "low" && !onList
-      ? [...s.shopping, { id: uid("s"), name: item.name, checked: false, source: "stock" as const }]
-      : s.shopping;
-  return { ...s, shopping, stock: s.stock.map((x) => (x.id === id ? { ...x, level } : x)) };
+  const next = { ...s, stock: s.stock.map((x) => (x.id === id ? { ...x, level } : x)) };
+  return level === "low" ? needItems([item.name], "stock")(next) : next;
 };
 
 export const addGrowth = (weightGrams: number, lengthCm: number, date: string) => (s: S): S => ({

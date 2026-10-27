@@ -47,12 +47,13 @@
       "doIt": "Ik doe het",
       "mealEyebrowMe": "Vanavond · jij kookt",
       "mealEyebrowOther": "Vanavond · {name} kookt",
-      "mealSub": "{count} ingrediënten, staan op de lijst.",
+      "mealSub": "{count, plural, =0 {Alles is in huis.} one {Nog # ingrediënt halen.} other {Nog # ingrediënten halen.}}",
       "toShopping": "Boodschappenlijst",
       "emptyEyebrow": "Vanavond",
       "emptyTitle": "Nog niets gepland",
-      "emptySub": "Kies een recept, de boodschappen komen vanzelf op de lijst.",
-      "planMeal": "Weekmenu"
+      "emptySub": "Plan wat jullie eten. Wat mist, komt op de lijst.",
+      "planMeal": "Weekmenu",
+      "mealSubPlain": "Kijk op de lijst wat je nog moet halen."
     },
     "tiles": {
       "household": "Huishouden",
@@ -71,8 +72,9 @@
       "projectsSub": "{count} open",
       "projectsSubDoing": "{count} open · {title}",
       "highBadge": "{count} HOOG",
-      "food": "Eten",
-      "foodSub": "{count} op de lijst"
+      "shopping": "Boodschappen",
+      "shoppingSub": "{count} te halen",
+      "shoppingMore": "+{count}"
     }
   },
   "home": {
@@ -330,43 +332,69 @@
     "eyebrow": "Meer",
     "title": "Alles op een rij",
     "back": "Meer",
-    "food": "Eten",
-    "foodSub": "Weekmenu en boodschappen · {count} op de lijst",
     "agenda": "Agenda",
     "agendaSub": "{count, plural, =0 {Niets deze week} one {# afspraak deze week} other {# afspraken deze week}}",
     "mail": "Mail",
     "mailSub": "Samenvatting van belangrijke mail",
     "later": "Later",
     "settings": "Instellingen",
-    "settingsSub": "Namen, meldingen, account"
+    "settingsSub": "Namen, meldingen, account",
+    "shopping": "Boodschappen",
+    "shoppingSub": "Lijst en weekmenu · {count} te halen"
   },
-  "food": {
+  "shopping": {
     "eyebrow": "Eten",
-    "title": "Weekmenu",
-    "week": "Komende 7 dagen",
+    "title": "Boodschappen",
+    "toBuy": "Halen · {count}",
+    "addItem": "Iets toevoegen",
+    "toBuyEmpty": "Alles is in huis. Voeg hierboven toe wat op is.",
+    "inHouse": "In huis · {count}",
+    "inHouseEmpty": "Nog niets in huis. Vink iets af bij Halen.",
+    "delete": "{name} verwijderen",
+    "deleted": "{name} verwijderd",
+    "trip": "Ik ga naar de winkel",
+    "tripDone": "Gemeld",
+    "tripSent": "De ander krijgt een melding",
+    "tripNone": "Niemand anders heeft meldingen aan",
+    "tripFailed": "Melding sturen is niet gelukt",
+    "offline": "Je bent offline. Probeer het zo opnieuw.",
+    "week": "Komende week",
     "tapToPlan": "tik om te plannen",
     "today": "Vandaag",
     "nothing": "Nog niets",
     "youCook": "Jij kookt",
     "cooks": "{name} kookt",
-    "shopping": "Boodschappen",
-    "itemsLeft": "{count} te halen",
-    "addItem": "Iets toevoegen",
-    "listEmpty": "De lijst is leeg.",
-    "checked": "{count} in het mandje",
-    "clear": "Wissen",
-    "cleared": "Afgevinkte boodschappen gewist",
-    "planned": "{name} gepland, ingrediënten staan op de lijst",
+    "planned": "{name} gepland{count, plural, =0 {} one {, # ingrediënt op de lijst} other {, # ingrediënten op de lijst}}",
+    "cleared": "Dag leeggemaakt",
     "source": {
       "recipe": "recept",
       "project": "klus",
       "stock": "voorraad"
     },
+    "push": {
+      "title": "{name} gaat naar de winkel",
+      "body": "Moet er nog iets mee? Zet het nu op Halen."
+    },
     "plan": {
       "cook": "Wie kookt",
       "me": "Ik",
-      "recipe": "Recept",
-      "hint": "Ontbrekende ingrediënten komen vanzelf op de boodschappenlijst."
+      "what": "Wat eten we?",
+      "whatPlaceholder": "Pasta pesto, stamppot…",
+      "whatError": "Vul in wat jullie eten.",
+      "recipes": "Uit je recepten",
+      "ingredients": "Ingrediënten (optioneel)",
+      "ingredientsPlaceholder": "Pasta, pesto, tomaat",
+      "ingredientsHint": "Gescheiden door komma's. Wat niet in huis is, komt op Halen.",
+      "suggestions": "Suggesties",
+      "suggestion": "Je hebt {have}/{total}, mist: {names}",
+      "suggestionComplete": "Je hebt alles in huis",
+      "noSuggestions": "Nog geen recepten die passen bij wat in huis is. Plan een maaltijd met ingrediënten, dan komen ze hier.",
+      "surprise": "Verras me",
+      "surpriseFailed": "Geen ideeën gekregen. Probeer het zo opnieuw.",
+      "surpriseUnavailable": "Verras me is nog niet ingesteld.",
+      "offline": "Je bent offline. De suggesties hierboven werken wel.",
+      "save": "Opslaan",
+      "clear": "Dag leegmaken"
     }
   },
   "agenda": {

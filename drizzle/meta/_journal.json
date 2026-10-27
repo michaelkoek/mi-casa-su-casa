@@ -8,6 +8,13 @@
       "when": 1792925601103,
       "tag": "0000_pale_bulldozer",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1793130382407,
+      "tag": "0001_polite_stryfe",
+      "breakpoints": true
     }
   ]
 }

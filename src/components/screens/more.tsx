@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarBlank, CaretLeft, CaretRight, CookingPot, Envelope, GearSix, Plus, ShareNetwork, Trash } from "@phosphor-icons/react";
+import { Basket, CalendarBlank, CaretDown, CaretLeft, CaretRight, Envelope, GearSix, Plus, ShareNetwork, Sparkle, Storefront, Trash, type Icon } from "@phosphor-icons/react";
 import clsx from "clsx";
 import { AnimatePresence, motion } from "motion/react";
 import { useTranslations } from "next-intl";
@@ -8,18 +8,28 @@ import Link from "next/link";
 import { useState, type FormEvent, type ReactNode } from "react";
 import {
   addShopping,
-  clearCheckedShopping,
-  planMeal,
-  recipeToShopping,
+  clearMeal,
+  deleteShopping,
+  planDay,
   renameMember,
   toggleShopping,
 } from "@/lib/actions";
-import { addDays, formatTime, toDateKey } from "@/lib/logic";
-import { deletePushSubscription } from "@/app/actions/push";
+import {
+  addDays,
+  formatTime,
+  missingIngredients,
+  normalizeItem,
+  parseIngredients,
+  suggestMeals,
+  toDateKey,
+} from "@/lib/logic";
+import type { MealIdea } from "@/lib/meal-ideas";
+import { suggestMealsAI } from "@/app/actions/meals";
+import { deletePushSubscription, notifyShoppingTrip } from "@/app/actions/push";
 import { authClient } from "@/lib/auth-client";
 import { hardNavigate } from "@/lib/navigate";
 import { useHousehold, useMemberName, useNow } from "@/lib/store";
-import { ChoiceGroup, Checkbox, Field, SoftButton } from "../form";
+import { ChoiceGroup, Checkbox, Field, PrimaryButton, SoftButton } from "../form";
 import { PushSettings } from "../push-settings";
 import { PageHeader, Screen, SectionTitle } from "../screen";
 import { Sheet } from "../sheet";
@@ -45,7 +55,7 @@ function More() {
     return d > -3600000 && d < 7 * 86400000;
   }).length;
 
-  const row = (href: string, tone: string, Icon: typeof CookingPot, title: string, sub: string, i: number, extra?: ReactNode) => (
+  const row = (href: string, tone: string, Icon: Icon, title: string, sub: string, i: number, extra?: ReactNode) => (
     <Link href={href} transitionTypes={["nav-forward"]} style={{ ["--i" as string]: i }}
       className={clsx("press rise mb-2 flex min-h-16 items-center gap-3.5 rounded-[20px] p-3", tone)}>
       <span className="grid h-[42px] w-[42px] flex-none place-items-center rounded-[14px] bg-bg"><Icon size={20} /></span>
@@ -61,7 +71,7 @@ function More() {
     <>
       <PageHeader eyebrow={t("eyebrow")} title={t("title")} />
       <div className="mt-[18px]">
-        {row("/meer/eten", "bg-tile-food", CookingPot, t("food"), t("foodSub", { count: shopping }), 0)}
+        {row("/meer/boodschappen", "bg-tile-food", Basket, t("shopping"), t("shoppingSub", { count: shopping }), 0)}
         {row("/meer/agenda", "bg-tile-agenda", CalendarBlank, t("agenda"), t("agendaSub", { count: week }), 1)}
         <div style={{ ["--i" as string]: 2 }} className="rise mb-2 flex min-h-16 items-center gap-3.5 rounded-[20px] bg-tile-jobs p-3 opacity-80">
           <span className="grid h-[42px] w-[42px] flex-none place-items-center rounded-[14px] bg-bg"><Envelope size={20} /></span>
@@ -89,55 +99,151 @@ function BackHeader({ title, eyebrow }: { title: string; eyebrow: string }) {
   );
 }
 
-/* ---------- Eten ---------- */
+/* ---------- Boodschappen ---------- */
 
-export function FoodScreen() {
+export function ShoppingScreen() {
   return (
     <Screen>
-      <Food />
+      <Shopping />
     </Screen>
   );
 }
 
-function Food() {
-  const t = useTranslations("food");
-  const { state, update } = useHousehold();
+const ROW_MOTION = {
+  initial: { opacity: 0, y: -6 },
+  animate: { opacity: 1, y: 0 },
+  exit: { opacity: 0, y: 12 },
+  transition: { duration: 0.22, ease: [0.16, 1, 0.3, 1] as const },
+};
+
+function Shopping() {
+  const t = useTranslations("shopping");
+  const { state, update, sync } = useHousehold();
   const nameOf = useMemberName();
   const now = useNow();
   const { act, toast } = useUI();
   const [item, setItem] = useState("");
   const [planDate, setPlanDate] = useState<string | null>(null);
+  const [inHouseOpen, setInHouseOpen] = useState(false);
+  const [tripAt, setTripAt] = useState<number | null>(null);
+  const [tripBusy, setTripBusy] = useState(false);
   const today = toDateKey(now);
   const days = Array.from({ length: 7 }, (_, i) => addDays(today, i));
-  const open = state.shopping.filter((s) => !s.checked);
-  const done = state.shopping.filter((s) => s.checked);
+  const toBuy = state.shopping.filter((s) => !s.checked);
+  const inHouse = state.shopping.filter((s) => s.checked);
+  const cooling = tripAt !== null && now.getTime() - tripAt < 10 * 60_000;
 
   const addItem = (e: FormEvent) => {
     e.preventDefault();
-    if (!item.trim()) return;
-    update(addShopping(item.trim()));
+    const name = item.trim();
+    if (!name) return;
+    update(addShopping(name));
     setItem("");
   };
+
+  const trip = async () => {
+    if (sync.offline || !navigator.onLine) return toast(t("offline"));
+    setTripBusy(true);
+    try {
+      const res = await notifyShoppingTrip();
+      if (res.ok) {
+        setTripAt(Date.now());
+        toast(res.sent > 0 ? t("tripSent") : t("tripNone"));
+      } else {
+        toast(t("tripFailed"));
+      }
+    } catch {
+      toast(t("tripFailed"));
+    } finally {
+      setTripBusy(false);
+    }
+  };
+
+  const trash = (s: { id: string; name: string }) => (
+    <button type="button" aria-label={t("delete", { name: s.name })}
+      className="press grid h-11 w-11 flex-none place-items-center rounded-xl text-ink-3"
+      onClick={() => act(t("deleted", { name: s.name }), deleteShopping(s.id))}>
+      <Trash size={18} />
+    </button>
+  );
 
   return (
     <>
       <BackHeader eyebrow={t("eyebrow")} title={t("title")} />
 
+      <SectionTitle
+        aside={
+          state.members.length > 1 && (
+            <button type="button" onClick={trip} disabled={cooling || tripBusy}
+              className="press -my-2 inline-flex h-11 items-center gap-1.5 rounded-xl px-2 text-sm font-semibold text-accent-strong disabled:opacity-50">
+              <Storefront size={18} /> {cooling ? t("tripDone") : t("trip")}
+            </button>
+          )
+        }>
+        {t("toBuy", { count: toBuy.length })}
+      </SectionTitle>
+      <form onSubmit={addItem} className="mb-2.5 flex gap-2">
+        <label htmlFor="shop-add" className="sr-only">{t("addItem")}</label>
+        <input id="shop-add" value={item} maxLength={100} onChange={(e) => setItem(e.target.value)} placeholder={t("addItem")}
+          className="h-12 min-w-0 flex-1 rounded-2xl bg-surface px-4 outline-none ring-accent-strong focus:ring-2" />
+        <button type="submit" aria-label={t("addItem")} className="press grid h-12 w-12 place-items-center rounded-2xl bg-accent-strong text-white">
+          <Plus size={20} weight="bold" />
+        </button>
+      </form>
+      <div className="rounded-[22px] bg-surface px-4 py-1">
+        {toBuy.length === 0 && <p className="py-4 text-sm text-ink-3">{t("toBuyEmpty")}</p>}
+        <AnimatePresence initial={false}>
+          {toBuy.map((s) => (
+            <motion.div layout key={s.id} {...ROW_MOTION} className="flex items-center border-b border-line last:border-b-0">
+              <button type="button" onClick={() => update(toggleShopping(s.id))}
+                className="flex min-h-[52px] min-w-0 flex-1 items-center gap-3 text-left">
+                <Checkbox done={false} />
+                <span className="flex-1">{s.name}</span>
+                {s.source !== "manual" && <span className="text-xs text-ink-3">{t(`source.${s.source}`)}</span>}
+              </button>
+              {trash(s)}
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </div>
+
+      <button type="button" aria-expanded={inHouseOpen} onClick={() => setInHouseOpen((o) => !o)}
+        className="press mx-0.5 mt-7 flex min-h-11 w-full items-center justify-between text-left text-[13px] font-semibold text-ink-3">
+        <span>{t("inHouse", { count: inHouse.length })}</span>
+        <CaretDown size={16} className={clsx("transition-transform duration-200", inHouseOpen && "rotate-180")} />
+      </button>
+      {inHouseOpen && (
+        <div className="mt-1 rounded-[22px] bg-surface px-4 py-1">
+          {inHouse.length === 0 && <p className="py-4 text-sm text-ink-3">{t("inHouseEmpty")}</p>}
+          <AnimatePresence initial={false}>
+            {inHouse.map((s) => (
+              <motion.div layout key={s.id} {...ROW_MOTION} className="flex items-center border-b border-line last:border-b-0">
+                <button type="button" onClick={() => update(toggleShopping(s.id))}
+                  className="flex min-h-[52px] min-w-0 flex-1 items-center gap-3 text-left">
+                  <Checkbox done />
+                  <span className="flex-1 text-ink-2">{s.name}</span>
+                </button>
+                {trash(s)}
+              </motion.div>
+            ))}
+          </AnimatePresence>
+        </div>
+      )}
+
       <SectionTitle aside={t("tapToPlan")}>{t("week")}</SectionTitle>
       <div className="-mx-[18px] flex gap-2.5 overflow-x-auto px-[18px] pb-1 [scrollbar-width:none]">
         {days.map((d, i) => {
           const meal = state.mealPlan.find((m) => m.date === d);
-          const recipe = meal && state.recipes.find((r) => r.id === meal.recipeId);
           const date = new Date(d + "T12:00:00");
           return (
             <button key={d} type="button" onClick={() => setPlanDate(d)} style={{ ["--i" as string]: i }}
               className={clsx("press rise flex h-36 w-32 flex-none flex-col justify-between rounded-[22px] p-3.5 text-left",
-                d === today ? "bg-hero text-white" : recipe ? "bg-tile-food" : "bg-surface")}>
+                d === today ? "bg-hero text-white" : meal ? "bg-tile-food" : "bg-surface")}>
               <span className={clsx("text-xs font-semibold", d === today ? "text-[var(--hero-sub)]" : "text-ink-3")}>
                 {d === today ? t("today") : date.toLocaleDateString("nl-NL", { weekday: "short", day: "numeric" })}
               </span>
               <span>
-                <span className="block text-sm font-semibold leading-tight">{recipe ? recipe.name : t("nothing")}</span>
+                <span className="block text-sm font-semibold leading-tight">{meal ? meal.title : t("nothing")}</span>
                 {meal && (
                   <span className={clsx("text-xs", d === today ? "text-[var(--hero-sub)]" : "text-ink-2")}>
                     {meal.cookId === state.me ? t("youCook") : t("cooks", { name: nameOf(meal.cookId) })}
@@ -149,78 +255,134 @@ function Food() {
         })}
       </div>
 
-      <SectionTitle aside={t("itemsLeft", { count: open.length })}>{t("shopping")}</SectionTitle>
-      <form onSubmit={addItem} className="mb-2.5 flex gap-2">
-        <label htmlFor="shop-add" className="sr-only">{t("addItem")}</label>
-        <input id="shop-add" value={item} onChange={(e) => setItem(e.target.value)} placeholder={t("addItem")}
-          className="h-12 min-w-0 flex-1 rounded-2xl bg-surface px-4 outline-none ring-accent-strong focus:ring-2" />
-        <button type="submit" aria-label={t("addItem")} className="press grid h-12 w-12 place-items-center rounded-2xl bg-accent-strong text-white">
-          <Plus size={20} weight="bold" />
-        </button>
-      </form>
-      <div className="rounded-[22px] bg-surface px-4 py-1">
-        {open.length === 0 && <p className="py-4 text-sm text-ink-3">{t("listEmpty")}</p>}
-        <AnimatePresence initial={false}>
-          {open.map((s) => (
-            <motion.button layout key={s.id} type="button" exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.22 }}
-              onClick={() => update(toggleShopping(s.id))}
-              className="flex min-h-[52px] w-full items-center gap-3 border-b border-line text-left last:border-b-0">
-              <Checkbox done={false} />
-              <span className="flex-1">{s.name}</span>
-              {s.source !== "manual" && <span className="text-xs text-ink-3">{t(`source.${s.source}`)}</span>}
-            </motion.button>
-          ))}
-        </AnimatePresence>
-      </div>
-      {done.length > 0 && (
-        <div className="mt-3 flex items-center justify-between px-1">
-          <span className="text-[13px] text-ink-3">{t("checked", { count: done.length })}</span>
-          <button type="button" className="press inline-flex h-11 items-center gap-1.5 rounded-xl px-3 text-sm font-semibold text-accent-strong"
-            onClick={() => act(t("cleared"), clearCheckedShopping)}>
-            <Trash size={16} /> {t("clear")}
-          </button>
-        </div>
-      )}
-
-      <PlanSheet date={planDate} onClose={() => setPlanDate(null)} onPlanned={(name) => toast(t("planned", { name }))} />
+      <PlanSheet date={planDate} onClose={() => setPlanDate(null)} />
     </>
   );
 }
 
-function PlanSheet({ date, onClose, onPlanned }: { date: string | null; onClose: () => void; onPlanned: (name: string) => void }) {
-  const t = useTranslations("food.plan");
-  const { state, update } = useHousehold();
-  const current = state.mealPlan.find((m) => m.date === date);
-  const [cook, setCook] = useState(current?.cookId ?? state.me);
-
+function PlanSheet({ date, onClose }: { date: string | null; onClose: () => void }) {
   return (
     <Sheet open={date !== null} onClose={onClose}
       title={date ? new Date(date + "T12:00:00").toLocaleDateString("nl-NL", { weekday: "long", day: "numeric", month: "long" }) : ""}>
-      <div className="flex flex-col gap-5">
-        <ChoiceGroup label={t("cook")} value={cook} onChange={setCook}
-          options={state.members.map((m) => ({ value: m.id, label: m.id === state.me ? t("me") : m.name }))} />
-        <div className="flex flex-col gap-2">
-          <p className="text-[13px] font-semibold text-ink-2">{t("recipe")}</p>
-          {state.recipes.map((r) => (
-            <button key={r.id} type="button"
-              className={clsx("press flex min-h-14 items-center justify-between gap-3 rounded-2xl px-4 text-left",
-                current?.recipeId === r.id ? "bg-accent-soft" : "bg-surface")}
-              onClick={() => {
-                if (!date) return;
-                update((s) => recipeToShopping(r.id)(planMeal(date, r.id, cook)(s)));
-                onClose();
-                onPlanned(r.name);
-              }}>
-              <span>
-                <span className="block font-medium">{r.name}</span>
-                <span className="text-xs text-ink-3">{r.ingredients.join(", ")}</span>
-              </span>
-            </button>
-          ))}
-          <p className="text-[13px] text-ink-3">{t("hint")}</p>
-        </div>
-      </div>
+      {date && <PlanForm key={date} date={date} onDone={onClose} />}
     </Sheet>
+  );
+}
+
+function PlanForm({ date, onDone }: { date: string; onDone: () => void }) {
+  const t = useTranslations("shopping.plan");
+  const ts = useTranslations("shopping");
+  const { state, sync } = useHousehold();
+  const { act, toast } = useUI();
+  const current = state.mealPlan.find((m) => m.date === date);
+  const currentRecipe = current?.recipeId ? state.recipes.find((r) => r.id === current.recipeId) : undefined;
+  const [cook, setCook] = useState(current?.cookId ?? state.me);
+  const [title, setTitle] = useState(current?.title ?? "");
+  const [ingredients, setIngredients] = useState(currentRecipe ? currentRecipe.ingredients.join(", ") : "");
+  const [titleError, setTitleError] = useState(false);
+  const [ideas, setIdeas] = useState<MealIdea[] | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiHidden, setAiHidden] = useState(false);
+
+  const fill = (name: string, list: string[]) => {
+    setTitle(name);
+    setIngredients(list.join(", "));
+    setTitleError(false);
+  };
+
+  const key = normalizeItem(title);
+  const quick = key
+    ? state.recipes.filter((r) => normalizeItem(r.name).includes(key) && normalizeItem(r.name) !== key).slice(0, 4)
+    : [];
+  const suggestions = suggestMeals(state.recipes, state.shopping).filter((x) => x.have.length > 0).slice(0, 3);
+
+  const surprise = async () => {
+    if (sync.offline || !navigator.onLine) return toast(t("offline"));
+    setAiLoading(true);
+    try {
+      const res = await suggestMealsAI();
+      if (res.ok) setIdeas(res.ideas);
+      else if (res.error === "unavailable") {
+        toast(t("surpriseUnavailable"));
+        setAiHidden(true);
+      } else toast(t("surpriseFailed"));
+    } catch {
+      toast(t("surpriseFailed"));
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const save = () => {
+    if (!title.trim()) return setTitleError(true);
+    const list = parseIngredients(ingredients);
+    const count = missingIngredients(list, state.shopping).length;
+    act(t("planned", { name: title.trim(), count }), planDay(date, { title, ingredients: list, cookId: cook }));
+    onDone();
+  };
+
+  const pick = "press min-h-14 rounded-2xl bg-surface px-4 py-2 text-left";
+
+  return (
+    <div className="flex flex-col gap-5">
+      <ChoiceGroup label={t("cook")} value={cook} onChange={setCook}
+        options={state.members.map((m) => ({ value: m.id, label: m.id === state.me ? t("me") : m.name }))} />
+
+      <Field label={t("what")} placeholder={t("whatPlaceholder")} maxLength={100} value={title}
+        onChange={(e) => { setTitle(e.target.value); setTitleError(false); }}
+        error={titleError ? t("whatError") : null} />
+
+      {quick.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <p className="text-[13px] font-semibold text-ink-2">{t("recipes")}</p>
+          <div className="flex flex-wrap gap-2">
+            {quick.map((r) => (
+              <button key={r.id} type="button" className="press h-11 rounded-full bg-surface px-4 text-sm"
+                onClick={() => fill(r.name, r.ingredients)}>
+                {r.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <Field label={t("ingredients")} placeholder={t("ingredientsPlaceholder")} hint={t("ingredientsHint")} value={ingredients}
+        onChange={(e) => setIngredients(e.target.value)} />
+
+      <div className="flex flex-col gap-2">
+        <p className="text-[13px] font-semibold text-ink-2">{t("suggestions")}</p>
+        {suggestions.length === 0 && <p className="text-[13px] text-ink-3">{t("noSuggestions")}</p>}
+        {suggestions.map((x) => (
+          <button key={x.recipe.id} type="button" className={pick} onClick={() => fill(x.recipe.name, x.recipe.ingredients)}>
+            <span className="block font-medium">{x.recipe.name}</span>
+            <span className="text-xs text-ink-3">
+              {x.missing.length === 0
+                ? t("suggestionComplete")
+                : t("suggestion", { have: x.have.length, total: x.recipe.ingredients.length, names: x.missing.join(", ") })}
+            </span>
+          </button>
+        ))}
+        {!aiHidden && (
+          <SoftButton onClick={surprise} disabled={aiLoading}>
+            <Sparkle size={18} /> {t("surprise")}
+          </SoftButton>
+        )}
+        {aiLoading && Array.from({ length: 3 }, (_, i) => <div key={i} className="skeleton h-14 rounded-2xl" />)}
+        {!aiLoading && ideas?.map((idea, i) => (
+          <button key={`${i}-${idea.title}`} type="button" className={pick} onClick={() => fill(idea.title, idea.ingredients)}>
+            <span className="block font-medium">{idea.title}</span>
+            <span className="text-xs text-ink-3">{idea.ingredients.join(", ")}</span>
+          </button>
+        ))}
+      </div>
+
+      <PrimaryButton type="button" onClick={save}>{t("save")}</PrimaryButton>
+      {current && (
+        <SoftButton className="w-full" onClick={() => { act(ts("cleared"), clearMeal(date)); onDone(); }}>
+          {t("clear")}
+        </SoftButton>
+      )}
+    </div>
   );
 }
 

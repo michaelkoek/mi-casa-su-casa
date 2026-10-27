@@ -371,7 +371,8 @@ export const mealPlan = pgTable(
   {
     householdId: hid(),
     date: day("date").notNull(),
-    recipeId: text("recipe_id").notNull(),
+    title: text("title").notNull(),
+    recipeId: text("recipe_id"),
     cookId: text("cook_id").notNull(),
     ...stamps,
   },

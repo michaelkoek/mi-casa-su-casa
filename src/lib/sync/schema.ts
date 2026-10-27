@@ -56,7 +56,7 @@ export const rowSchemas: { [C in CollectionName]: z.ZodType<RowMap[C]> } = {
   }),
   foods: z.strictObject({ id, name: text, date, verdict: z.enum(["likes", "dislikes", "unsure"]), position }),
   recipes: z.strictObject({ id, name: text, ingredients: z.array(z.string().min(1).max(100)).max(50), position }),
-  mealPlan: z.strictObject({ date, recipeId: id, cookId: id }),
+  mealPlan: z.strictObject({ date, title: z.string().trim().min(1).max(100), recipeId: z.union([id, z.null()]), cookId: id }),
   shopping: z.strictObject({
     id, name: text, checked: z.boolean(), source: z.enum(["manual", "recipe", "project", "stock"]), position,
   }),

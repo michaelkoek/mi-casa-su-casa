@@ -2,7 +2,7 @@ import "server-only";
 import { eq, inArray } from "drizzle-orm";
 import webpush from "web-push";
 import { db } from "@/db";
-import { pushSubscriptions } from "@/db/schema";
+import { members, pushSubscriptions } from "@/db/schema";
 import { pushEnv } from "./env";
 import { scope, type HouseholdContext } from "./household";
 
@@ -84,4 +84,9 @@ export async function removeSubscription(ctx: HouseholdContext, endpoint: string
     .where(
       scope(ctx).where(pushSubscriptions, eq(pushSubscriptions.endpoint, endpoint), eq(pushSubscriptions.memberId, ctx.memberId)),
     );
+}
+
+/** Id and name of every member of the caller's household. */
+export async function listMembers(ctx: HouseholdContext): Promise<{ id: string; name: string }[]> {
+  return db.select({ id: members.id, name: members.name }).from(members).where(scope(ctx).where(members));
 }

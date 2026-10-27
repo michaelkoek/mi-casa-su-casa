@@ -31,13 +31,15 @@ describe("parseChangeset", () => {
     toggleSignal: actions.toggleSignal("paper", "m1", now),
     doneChore: actions.doneChore("c1", now),
     addMaterial: actions.addMaterial("p1", "Schroeven"),
-    clearCheckedShopping: actions.clearCheckedShopping,
+    deleteShopping: actions.deleteShopping("s3"),
     categorizeTransaction: actions.categorizeTransaction("x12", "home", true),
     addExpense: actions.addExpense(1250, "Bakker", "food", now),
     addDose: actions.addDose("para", "120 mg", "m1", now),
     addAppointment: actions.addAppointment("Tandarts", "2026-10-25T08:00:00.000Z", null),
     cycleCare: actions.cycleCare(1, "bring"),
-    planMeal: actions.planMeal(seed.mealPlan[0].date, "rc3", "m2"),
+    planMeal: actions.planMeal(seed.mealPlan[0].date, { title: "Linzensoep", recipeId: "rc3", cookId: "m2" }),
+    planDay: actions.planDay(seed.mealPlan[0].date, { title: "Shakshuka", ingredients: ["Eieren", "Tomaat"], cookId: "m1" }),
+    clearMeal: actions.clearMeal(seed.mealPlan[0].date),
     renameMember: actions.renameMember("m2", "Sanne"),
     addMilestone: actions.addMilestone("Eerste woordje", "2026-10-20"),
     addGrowth: actions.addGrowth(10000, 78, "2026-10-01"),
@@ -61,7 +63,15 @@ describe("parseChangeset", () => {
 
   it("rejects ops that are not allowed", () => {
     expect(parseChangeset(cs({ op: "insert", c: "members", row: { id: "m9", name: "Eve", position: 2 } })).ok).toBe(false);
-    expect(parseChangeset(cs(update({ name: "x" }, "recipes", "rc1"))).ok).toBe(false);
+    expect(parseChangeset(cs(update({ label: "x" }, "routine", "rt1"))).ok).toBe(false);
+  });
+
+  it("accepts recipe inserts and free-text meals, and rejects a too long title", () => {
+    const recipe = { id: "rc9", name: "Shakshuka", ingredients: ["Eieren"], position: 4 };
+    expect(parseChangeset(cs({ op: "insert", c: "recipes", row: recipe })).ok).toBe(true);
+    const date = seed.mealPlan[0].date;
+    expect(parseChangeset(cs(update({ title: "Pasta", recipeId: null }, "mealPlan", date))).ok).toBe(true);
+    expect(parseChangeset(cs(update({ title: "x".repeat(101) }, "mealPlan", date))).ok).toBe(false);
   });
 
   it("rejects unknown or extra fields, including householdId", () => {

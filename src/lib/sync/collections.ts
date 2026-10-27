@@ -109,7 +109,7 @@ export const COLLECTIONS: { [C in CollectionName]: CollectionDef } = {
   stock: { key: "id", ordered: true, ops: ["update"], timestamps: [] },
   growth: { key: "id", ordered: true, ops: ALL, timestamps: [] },
   foods: { key: "id", ordered: true, ops: ALL, timestamps: [] },
-  recipes: { key: "id", ordered: true, ops: [], timestamps: [] },
+  recipes: { key: "id", ordered: true, ops: ALL, timestamps: [] },
   mealPlan: { key: "date", ordered: false, ops: ALL, timestamps: [] },
   shopping: { key: "id", ordered: true, ops: ALL, timestamps: [] },
   events: { key: "id", ordered: true, ops: [], timestamps: ["start"] },
