@@ -22,7 +22,8 @@ const cases: Record<string, (s: HouseholdState) => HouseholdState> = {
   categorizeTransaction: actions.categorizeTransaction("x12", "home", true),
   addExpense: actions.addExpense(1250, "Bakker", "food", now),
   setBudget: actions.setBudget("food", 50000),
-  syncBank: actions.syncBank(now),
+  setTransfer: actions.setTransfer("x05", true),
+  addCategory: actions.addCategory("Abonnementen", 5000),
   addDose: actions.addDose("para", "120 mg", "m1", now),
   addTemperature: actions.addTemperature(38.5, now),
   addAppointment: actions.addAppointment("Tandarts", "2026-10-25T08:00:00.000Z", null),
@@ -96,7 +97,7 @@ describe("diffState / applyChangeset", () => {
 
   it("gives [] for a no-op and ignores me/bank", () => {
     expect(diffState(seed, seed)).toEqual([]);
-    expect(diffState(seed, { ...seed, me: "m2", bank: null })).toEqual([]);
+    expect(diffState(seed, { ...seed, me: "m2", bank: [] })).toEqual([]);
   });
 });
 

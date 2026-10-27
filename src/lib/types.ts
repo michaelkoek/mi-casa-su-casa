@@ -56,6 +56,12 @@ export type Transaction = {
   amountCents: number; // negative = spent
   categoryId: string | null;
   source: "bank" | "manual";
+  /** Bank account the transaction was imported from; null for manual entries. */
+  accountId: string | null;
+  /** Payment details from the bank (remittance information). */
+  description: string | null;
+  /** Transfer between own accounts: not spending or income. */
+  transfer: boolean;
 };
 
 export type CategoryRule = { id: string; contains: string; categoryId: string };
@@ -86,7 +92,17 @@ export type Milestone = { id: string; date: string; text: string };
 
 export type RoutineItem = { id: string; time: string; label: string };
 
-export type BankStatus = { name: string; syncedAt: string; consentUntil: string };
+export type BankAccount = { id: string; iban: string | null; name: string | null };
+
+/** One bank link. Read-only for the client; written by the server import. */
+export type BankStatus = {
+  id: string;
+  name: string;
+  status: "active" | "expired" | "error";
+  syncedAt: string | null;
+  consentUntil: string;
+  accounts: BankAccount[];
+};
 
 export type HouseholdState = {
   version: 1;
@@ -99,8 +115,8 @@ export type HouseholdState = {
   categories: Category[];
   transactions: Transaction[];
   rules: CategoryRule[];
-  /** Null until the bank link exists (phase 3). */
-  bank: BankStatus | null;
+  /** Linked banks; empty until a bank is linked. */
+  bank: BankStatus[];
   care: CareDay[];
   medicines: Medicine[];
   doses: Dose[];

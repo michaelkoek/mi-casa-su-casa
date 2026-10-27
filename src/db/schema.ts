@@ -175,12 +175,18 @@ export const transactions = pgTable(
     amountCents: integer("amount_cents").notNull(),
     categoryId: text("category_id"),
     source: text("source").$type<"bank" | "manual">().notNull(),
-    position: pos(),
+    /** bank_accounts.id; no foreign key, so transactions outlive an unlinked bank. */
+    accountId: text("account_id"),
+    description: text("description"),
+    transfer: boolean("transfer").notNull().default(false),
+    /** ISO 18245 merchant category code from the bank, used as a categorizing fallback. */
+    mcc: text("mcc"),
     ...stamps,
   },
   (t) => [
     primaryKey({ columns: [t.householdId, t.id] }),
     foreignKey({ columns: [t.householdId, t.categoryId], foreignColumns: [categories.householdId, categories.id] }),
+    index("transactions_household_date_idx").on(t.householdId, t.date),
   ],
 );
 
@@ -434,3 +440,54 @@ export const pushSubscriptions = pgTable(
   ],
 );
 
+
+/*
+ * Bank link (Enable Banking). Server-only tables: never part of the sync changeset.
+ * The session id grants read access to the accounts, so it is stored encrypted.
+ */
+export const bankConnections = pgTable(
+  "bank_connections",
+  {
+    householdId: hid(),
+    id: text("id").notNull(),
+    aspspName: text("aspsp_name").notNull(),
+    aspspCountry: text("aspsp_country").notNull(),
+    sessionEnc: text("session_enc").notNull(),
+    validUntil: ts("valid_until").notNull(),
+    status: text("status").$type<"active" | "expired" | "error">().notNull().default("active"),
+    lastSyncedAt: ts("last_synced_at"),
+    lastError: text("last_error"),
+    /** Set once the "consent ends soon" push went out, so it is sent only once. */
+    expiryWarnedAt: ts("expiry_warned_at"),
+    ...stamps,
+  },
+  (t) => [primaryKey({ columns: [t.householdId, t.id] })],
+);
+
+export const bankAccounts = pgTable(
+  "bank_accounts",
+  {
+    householdId: hid(),
+    /** Derived from the bank's identification hash: stable when the bank is linked again. */
+    id: text("id").notNull(),
+    /** Enable Banking account uid; changes with every new session. */
+    uid: text("uid").notNull(),
+    connectionId: text("connection_id").notNull(),
+    iban: text("iban"),
+    name: text("name"),
+    ...stamps,
+  },
+  (t) => [
+    primaryKey({ columns: [t.householdId, t.id] }),
+    foreignKey({ columns: [t.householdId, t.connectionId], foreignColumns: [bankConnections.householdId, bankConnections.id] }).onDelete("cascade"),
+  ],
+);
+
+/** Pending authorisations: the callback only accepts a state it created, for the same household. */
+export const bankAuthStates = pgTable("bank_auth_states", {
+  state: uuid("state").primaryKey().defaultRandom(),
+  householdId: hid(),
+  aspspName: text("aspsp_name").notNull(),
+  aspspCountry: text("aspsp_country").notNull(),
+  createdAt: ts("created_at").notNull().defaultNow(),
+});

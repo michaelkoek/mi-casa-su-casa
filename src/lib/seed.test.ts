@@ -31,7 +31,7 @@ describe("createStarter", () => {
   it("has 5 care days, a medicine and no bank", () => {
     expect(s.care).toHaveLength(5);
     expect(s.medicines.length).toBeGreaterThanOrEqual(1);
-    expect(s.bank).toBeNull();
+    expect(s.bank).toEqual([]);
   });
 
   it("leaves the demo seed intact", () => {

@@ -46,18 +46,29 @@ export function completeChore(chore: Chore, today: string): Chore {
   };
 }
 
-/** First rule whose text occurs in the counterparty decides the category. */
-export function categorize(counterparty: string, rules: CategoryRule[]): string | null {
-  const name = counterparty.toLowerCase();
-  const hit = rules.find((r) => name.includes(r.contains.toLowerCase()));
+/** First rule whose text occurs in the counterparty, or else in the payment details, decides the category. */
+export function categorize(
+  tx: { counterparty: string; description?: string | null },
+  rules: CategoryRule[],
+): string | null {
+  const name = tx.counterparty.toLowerCase();
+  const details = (tx.description ?? "").toLowerCase();
+  const hit =
+    rules.find((r) => name.includes(r.contains.toLowerCase())) ??
+    (details ? rules.find((r) => details.includes(r.contains.toLowerCase())) : undefined);
   return hit ? hit.categoryId : null;
+}
+
+/** Spending counts: money out that is not a transfer between own accounts. */
+export function isSpending(t: Transaction): boolean {
+  return t.amountCents < 0 && !t.transfer;
 }
 
 export type BudgetLine = { category: Category; spentCents: number; ratio: number; over: boolean };
 
-/** Spending per category for one month (YYYY-MM), only negative amounts count as spending. */
+/** Spending per category for one month (YYYY-MM); only spending counts, see isSpending. */
 export function budgetSummary(transactions: Transaction[], categories: Category[], month: string) {
-  const inMonth = transactions.filter((t) => t.date.startsWith(month) && t.amountCents < 0);
+  const inMonth = transactions.filter((t) => t.date.startsWith(month) && isSpending(t));
   const lines: BudgetLine[] = categories.map((category) => {
     const spentCents = -inMonth
       .filter((t) => t.categoryId === category.id)
@@ -98,6 +109,13 @@ export function addDays(dateKey: string, days: number): string {
   const [y, m, d] = dateKey.split("-").map(Number);
   const date = new Date(y, m - 1, d + days);
   return toDateKey(date);
+}
+
+/** Moves a month key ("2026-10") by n months. */
+export function shiftMonth(month: string, n: number): string {
+  const [y, m] = month.split("-").map(Number);
+  const d = new Date(y, m - 1 + n, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
 export function formatTime(iso: string | Date): string {

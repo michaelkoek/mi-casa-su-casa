@@ -5,7 +5,7 @@ import clsx from "clsx";
 import { AnimatePresence, motion } from "motion/react";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
-import { categorizeTransaction, syncBank } from "@/lib/actions";
+import { categorizeTransaction } from "@/lib/actions";
 import { budgetSummary, formatEuro, formatTime, toDateKey } from "@/lib/logic";
 import { useHousehold, useNow } from "@/lib/store";
 import { SoftButton } from "../form";
@@ -23,7 +23,7 @@ export function MoneyScreen() {
 
 function Money() {
   const t = useTranslations("money");
-  const { state, update } = useHousehold();
+  const { state } = useHousehold();
   const now = useNow();
   const { act, toast, openSheet } = useUI();
   const [remember, setRemember] = useState(true);
@@ -32,14 +32,13 @@ function Money() {
   const month = toDateKey(now).slice(0, 7);
   const summary = budgetSummary(state.transactions, state.categories, month);
   const left = summary.totalBudgetCents - summary.totalSpentCents;
-  const bank = state.bank;
+  const bank = state.bank[0] ?? null;
   const consentDays = bank ? Math.round((new Date(bank.consentUntil).getTime() - now.getTime()) / 86400000) : null;
   const monthName = now.toLocaleDateString("nl-NL", { month: "long" });
 
   const sync = () => {
     setSyncing(true);
     window.setTimeout(() => {
-      update(syncBank(new Date()));
       setSyncing(false);
       toast(t("synced"));
     }, 900);
@@ -56,7 +55,7 @@ function Money() {
         {bank && (
           <div className="relative z-10 mt-4 flex items-center gap-2 text-[13px] text-ink-2">
             <Bank size={18} />
-            <span>{t("bankSynced", { bank: bank.name, time: formatTime(bank.syncedAt) })}</span>
+            <span>{bank.syncedAt && t("bankSynced", { bank: bank.name, time: formatTime(bank.syncedAt) })}</span>
             <button type="button" onClick={sync} disabled={syncing} aria-label={t("refresh")}
               className="press ml-auto grid h-10 w-10 place-items-center rounded-full bg-bg">
               <ArrowClockwise size={18} className={clsx(syncing && "animate-spin")} />

@@ -28,7 +28,7 @@ describe("rows", () => {
   it("orders by position when rebuilding", () => {
     const rows = toRows(createSeed(now));
     rows.tasks.reverse();
-    const state = fromRows(rows, "m1", null);
+    const state = fromRows(rows, "m1", []);
     expect(state.tasks.map((t) => t.id)).toEqual(["t1", "t2", "t3", "t4", "t5"]);
   });
 });

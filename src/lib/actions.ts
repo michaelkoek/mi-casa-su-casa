@@ -88,7 +88,10 @@ export const addExpense = (amountCents: number, counterparty: string, categoryId
   ...s,
   transactions: [
     ...s.transactions,
-    { id: uid("x"), date: toDateKey(now), counterparty, amountCents: -Math.abs(amountCents), categoryId, source: "manual" },
+    {
+      id: uid("x"), date: toDateKey(now), counterparty, amountCents: -Math.abs(amountCents), categoryId,
+      source: "manual", accountId: null, description: null, transfer: false,
+    },
   ],
 });
 
@@ -97,8 +100,16 @@ export const setBudget = (categoryId: string, budgetCents: number) => (s: S): S 
   categories: s.categories.map((c) => (c.id === categoryId ? { ...c, budgetCents } : c)),
 });
 
-export const syncBank = (now: Date) => (s: S): S =>
-  s.bank ? { ...s, bank: { ...s.bank, syncedAt: now.toISOString() } } : s;
+/** Marks a transaction as a transfer between own accounts (or back), so totals skip it. */
+export const setTransfer = (txId: string, transfer: boolean) => (s: S): S => ({
+  ...s,
+  transactions: s.transactions.map((t) => (t.id === txId ? { ...t, transfer } : t)),
+});
+
+export const addCategory = (name: string, budgetCents: number) => (s: S): S => ({
+  ...s,
+  categories: [...s.categories, { id: uid("k"), name, budgetCents }],
+});
 
 export const addDose = (medicineId: string, amount: string, by: MemberId, now: Date) => (s: S): S => ({
   ...s,

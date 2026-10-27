@@ -42,7 +42,7 @@ export type RowMap = {
   projects: P<Omit<HomeProject, "materials">>;
   materials: P<Material & { projectId: string }>;
   categories: P<Category>;
-  transactions: P<Transaction>;
+  transactions: Transaction;
   rules: P<CategoryRule>;
   care: CareDay;
   medicines: P<Medicine>;
@@ -77,7 +77,7 @@ export type Changeset = { id: string; changes: Change[] };
 type CollectionDef = {
   /** Primary key field inside the household. */
   key: string;
-  /** False for care (sorted by weekday) and mealPlan (sorted by date). */
+  /** False for care (sorted by weekday), mealPlan and transactions (sorted by date). */
   ordered: boolean;
   ops: Op[];
   /** Patch allow-list; default: all fields except the key. */
@@ -95,8 +95,9 @@ export const COLLECTIONS: { [C in CollectionName]: CollectionDef } = {
   tasks: { key: "id", ordered: true, ops: ALL, timestamps: ["doneAt"] },
   projects: { key: "id", ordered: true, ops: ALL, timestamps: [] },
   materials: { key: "id", ordered: true, ops: ALL, timestamps: [] },
-  categories: { key: "id", ordered: true, ops: ["update"], timestamps: [] },
-  transactions: { key: "id", ordered: true, ops: ALL, timestamps: [] },
+  categories: { key: "id", ordered: true, ops: ["insert", "update"], timestamps: [] },
+  // Sorted by date, not position: imports add rows on the server, and positions would shift on every delete.
+  transactions: { key: "id", ordered: false, ops: ALL, updatable: ["categoryId", "counterparty", "transfer"], timestamps: [] },
   rules: { key: "id", ordered: true, ops: ALL, timestamps: [] },
   care: { key: "weekday", ordered: false, ops: ["update"], timestamps: [] },
   medicines: { key: "id", ordered: true, ops: [], timestamps: [] },

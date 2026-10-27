@@ -7,6 +7,9 @@ const withPosition = <T extends object>(items: T[]) => items.map((item, position
 
 const byKey = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
+const byDate = (a: { date: string; id: string }, b: { date: string; id: string }) =>
+  byKey(a.date, b.date) || byKey(a.id, b.id);
+
 /** Flattens the state into rows; position = array index, materials get their project id. */
 export function toRows(s: HouseholdState): Rows {
   return {
@@ -23,7 +26,7 @@ export function toRows(s: HouseholdState): Rows {
     ),
     materials: s.projects.flatMap((p) => withPosition(p.materials).map((m) => ({ ...m, projectId: p.id }))),
     categories: withPosition(s.categories),
-    transactions: withPosition(s.transactions),
+    transactions: [...s.transactions].sort(byDate),
     rules: withPosition(s.rules),
     care: [...s.care].sort((a, b) => a.weekday - b.weekday),
     medicines: withPosition(s.medicines),
@@ -58,7 +61,7 @@ function ordered<C extends CollectionName>(c: C, rows: Rows[C]): Omit<Rows[C][nu
 }
 
 /** Rebuilds the nested state from rows. `me` and `bank` are not stored as rows. */
-export function fromRows(rows: Rows, me: MemberId, bank: BankStatus | null): HouseholdState {
+export function fromRows(rows: Rows, me: MemberId, bank: BankStatus[]): HouseholdState {
   const o = <C extends CollectionName>(c: C) => ordered(c, rows[c]);
   const materials = o("materials");
   return {
@@ -75,7 +78,7 @@ export function fromRows(rows: Rows, me: MemberId, bank: BankStatus | null): Hou
         .map((m) => ({ id: m.id, name: m.name, bought: m.bought })),
     })),
     categories: o("categories"),
-    transactions: o("transactions"),
+    transactions: [...rows.transactions].sort(byDate),
     rules: o("rules"),
     bank,
     care: [...rows.care].sort((a, b) => a.weekday - b.weekday),

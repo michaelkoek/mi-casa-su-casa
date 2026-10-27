@@ -39,7 +39,8 @@ export const rowSchemas: { [C in CollectionName]: z.ZodType<RowMap[C]> } = {
   categories: z.strictObject({ id, name: text, budgetCents: cents, position }),
   transactions: z.strictObject({
     id, date, counterparty: text, amountCents: z.number().int().min(-1_000_000_000).max(1_000_000_000),
-    categoryId: z.union([id, z.null()]), source: z.enum(["bank", "manual"]), position,
+    categoryId: z.union([id, z.null()]), source: z.enum(["bank", "manual"]),
+    accountId: z.union([id, z.null()]), description: z.union([optText, z.null()]), transfer: z.boolean(),
   }),
   rules: z.strictObject({ id, contains: text, categoryId: id, position }),
   care: z.strictObject({ weekday: z.literal([1, 2, 3, 4, 5]), atHome: z.boolean(), bring: slot, pick: slot }),

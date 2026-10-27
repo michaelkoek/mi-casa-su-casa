@@ -62,10 +62,17 @@ describe("categorize", () => {
     { id: "r2", contains: "NS", categoryId: "transport" },
   ];
   it("matches case-insensitively", () => {
-    expect(categorize("ALBERT HEIJN 1234 UTRECHT", rules)).toBe("food");
+    expect(categorize({ counterparty: "ALBERT HEIJN 1234 UTRECHT" }, rules)).toBe("food");
   });
   it("returns null when nothing matches", () => {
-    expect(categorize("Gamma Utrecht", rules)).toBeNull();
+    expect(categorize({ counterparty: "Gamma Utrecht" }, rules)).toBeNull();
+  });
+  it("falls back to the payment details", () => {
+    expect(categorize({ counterparty: "CCV*Betaling", description: "Albert Heijn 1342 Utrecht" }, rules)).toBe("food");
+  });
+  it("prefers a counterparty match over a details match", () => {
+    const both = [...rules, { id: "r3", contains: "bakker", categoryId: "out" }];
+    expect(categorize({ counterparty: "Bakker Bart", description: "albert heijn" }, both)).toBe("out");
   });
 });
 
@@ -75,11 +82,12 @@ describe("budgetSummary", () => {
     { id: "home", name: "Huis", budgetCents: 20000 },
   ];
   const tx: Transaction[] = [
-    { id: "1", date: "2026-10-02", counterparty: "AH", amountCents: -12000, categoryId: "food", source: "bank" },
-    { id: "2", date: "2026-10-03", counterparty: "Gamma", amountCents: -24100, categoryId: "home", source: "bank" },
-    { id: "3", date: "2026-10-04", counterparty: "Salaris", amountCents: 300000, categoryId: null, source: "bank" },
-    { id: "4", date: "2026-09-30", counterparty: "AH", amountCents: -5000, categoryId: "food", source: "bank" },
-    { id: "5", date: "2026-10-05", counterparty: "Kruidvat", amountCents: -1849, categoryId: null, source: "bank" },
+    { id: "1", date: "2026-10-02", counterparty: "AH", amountCents: -12000, categoryId: "food", source: "bank", accountId: null, description: null, transfer: false },
+    { id: "2", date: "2026-10-03", counterparty: "Gamma", amountCents: -24100, categoryId: "home", source: "bank", accountId: null, description: null, transfer: false },
+    { id: "3", date: "2026-10-04", counterparty: "Salaris", amountCents: 300000, categoryId: null, source: "bank", accountId: null, description: null, transfer: false },
+    { id: "4", date: "2026-09-30", counterparty: "AH", amountCents: -5000, categoryId: "food", source: "bank", accountId: null, description: null, transfer: false },
+    { id: "5", date: "2026-10-05", counterparty: "Kruidvat", amountCents: -1849, categoryId: null, source: "bank", accountId: null, description: null, transfer: false },
+    { id: "6", date: "2026-10-06", counterparty: "Eigen spaarrekening", amountCents: -50000, categoryId: null, source: "bank", accountId: null, description: null, transfer: true },
   ];
   it("sums spending per category for the month and flags overspending", () => {
     const s = budgetSummary(tx, categories, "2026-10");
@@ -87,6 +95,11 @@ describe("budgetSummary", () => {
     expect(s.lines[1].over).toBe(true);
     expect(s.totalSpentCents).toBe(12000 + 24100 + 1849);
     expect(s.uncategorized.map((t) => t.id)).toEqual(["5"]);
+  });
+  it("skips transfers between own accounts", () => {
+    const s = budgetSummary(tx, categories, "2026-10");
+    expect(s.uncategorized.map((t) => t.id)).not.toContain("6");
+    expect(s.totalSpentCents).toBe(12000 + 24100 + 1849);
   });
 });
 
