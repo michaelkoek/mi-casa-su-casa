@@ -36,6 +36,8 @@ type HouseholdContext = {
   snapshot: () => HouseholdState;
   account: { email: string };
   sync: SyncInfo;
+  /** Sends pending changes and pulls the server state now (e.g. after a bank import). */
+  refresh: () => Promise<void>;
 };
 
 const Ctx = createContext<HouseholdContext | null>(null);
@@ -243,8 +245,8 @@ export function HouseholdProvider({
   const snapshot = useCallback(() => stateRef.current, []);
 
   const value = useMemo(
-    () => ({ state, ready, update, snapshot, account, sync }),
-    [state, ready, update, snapshot, account, sync],
+    () => ({ state, ready, update, snapshot, account, sync, refresh: syncNow }),
+    [state, ready, update, snapshot, account, sync, syncNow],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

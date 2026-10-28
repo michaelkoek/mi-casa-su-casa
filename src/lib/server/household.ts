@@ -67,6 +67,14 @@ export async function requireHouseholdForAction(): Promise<HouseholdContext | nu
   return getHouseholdContext();
 }
 
+/**
+ * Context for background jobs (cron) that act for a household without a user session.
+ * Only `householdId` is meaningful; scope() uses nothing else.
+ */
+export function jobContext(householdId: string): HouseholdContext {
+  return { userId: "", email: "", householdId, memberId: "" };
+}
+
 /** Unscoped lookup by email; used only by the auth instance to decide who may log in. */
 export async function isMemberEmail(email: string): Promise<boolean> {
   const [row] = await db

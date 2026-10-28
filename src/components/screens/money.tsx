@@ -1,13 +1,15 @@
 "use client";
 
-import { ArrowClockwise, Bank, CaretDown, Plus } from "@phosphor-icons/react";
+import { CaretDown, ChartBar, ListBullets, Plus, type Icon } from "@phosphor-icons/react";
 import clsx from "clsx";
 import { AnimatePresence, motion } from "motion/react";
 import { useTranslations } from "next-intl";
+import Link from "next/link";
 import { useState } from "react";
 import { categorizeTransaction } from "@/lib/actions";
-import { budgetSummary, formatEuro, formatTime, toDateKey } from "@/lib/logic";
+import { budgetSummary, formatEuro, toDateKey } from "@/lib/logic";
 import { useHousehold, useNow } from "@/lib/store";
+import { BankStrip } from "../bank";
 import { SoftButton } from "../form";
 import { PiggyArt } from "../illustrations";
 import { Screen, SectionTitle } from "../screen";
@@ -25,24 +27,15 @@ function Money() {
   const t = useTranslations("money");
   const { state } = useHousehold();
   const now = useNow();
-  const { act, toast, openSheet } = useUI();
+  const { act, openSheet } = useUI();
   const [remember, setRemember] = useState(true);
   const [openCat, setOpenCat] = useState<string | null>(null);
-  const [syncing, setSyncing] = useState(false);
   const month = toDateKey(now).slice(0, 7);
   const summary = budgetSummary(state.transactions, state.categories, month);
   const left = summary.totalBudgetCents - summary.totalSpentCents;
-  const bank = state.bank[0] ?? null;
-  const consentDays = bank ? Math.round((new Date(bank.consentUntil).getTime() - now.getTime()) / 86400000) : null;
   const monthName = now.toLocaleDateString("nl-NL", { month: "long" });
 
-  const sync = () => {
-    setSyncing(true);
-    window.setTimeout(() => {
-      setSyncing(false);
-      toast(t("synced"));
-    }, 900);
-  };
+  const monthCount = state.transactions.filter((x) => x.date.startsWith(month)).length;
 
   return (
     <>
@@ -52,21 +45,14 @@ function Money() {
         <p className={clsx("relative z-10 mt-1 text-sm font-medium", left < 0 ? "text-bad" : "text-ink-2")}>
           {left >= 0 ? t("under", { amount: formatEuro(left, true) }) : t("over", { amount: formatEuro(-left, true) })}
         </p>
-        {bank && (
-          <div className="relative z-10 mt-4 flex items-center gap-2 text-[13px] text-ink-2">
-            <Bank size={18} />
-            <span>{bank.syncedAt && t("bankSynced", { bank: bank.name, time: formatTime(bank.syncedAt) })}</span>
-            <button type="button" onClick={sync} disabled={syncing} aria-label={t("refresh")}
-              className="press ml-auto grid h-10 w-10 place-items-center rounded-full bg-bg">
-              <ArrowClockwise size={18} className={clsx(syncing && "animate-spin")} />
-            </button>
-          </div>
-        )}
         <span className="pointer-events-none absolute -right-3 -top-1 opacity-90"><PiggyArt /></span>
       </section>
-      {bank && consentDays !== null && consentDays <= 90 && (
-        <p className="mt-2.5 px-1 text-[13px] text-ink-3">{t("consent", { days: consentDays, bank: bank.name })}</p>
-      )}
+      <BankStrip />
+
+      <div className="mt-3 grid grid-cols-2 gap-2.5">
+        <NavTile href="/geld/inzicht" Icon={ChartBar} title={t("insights")} sub={t("insightsSub")} />
+        <NavTile href="/geld/transacties" Icon={ListBullets} title={t("transactions")} sub={t("transactionsSub", { count: monthCount })} />
+      </div>
 
       {summary.uncategorized.length > 0 ? (
         <>
@@ -154,5 +140,18 @@ function Money() {
         <Plus size={18} weight="bold" /> {t("addCash")}
       </SoftButton>
     </>
+  );
+}
+
+function NavTile({ href, Icon, title, sub }: { href: string; Icon: Icon; title: string; sub: string }) {
+  return (
+    <Link href={href} transitionTypes={["nav-forward"]}
+      className="press flex min-h-[104px] flex-col justify-between rounded-[22px] bg-surface p-4">
+      <Icon size={22} />
+      <span>
+        <span className="block font-semibold">{title}</span>
+        <span className="mt-0.5 block text-[13px] leading-snug text-ink-3">{sub}</span>
+      </span>
+    </Link>
   );
 }

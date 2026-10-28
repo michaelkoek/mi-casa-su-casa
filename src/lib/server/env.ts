@@ -66,3 +66,26 @@ export function aiEnv(): { ANTHROPIC_API_KEY: string } | null {
 export function pushEnv() {
   return parse(push, "push");
 }
+
+const bank = z.object({
+  ENABLE_BANKING_APP_ID: z.string().min(1),
+  // Stored with "\n" escapes in env files; turned back into a real PEM here.
+  ENABLE_BANKING_PRIVATE_KEY: z
+    .string()
+    .min(1)
+    .transform((v) => v.replace(/\\n/g, "\n")),
+  BANK_TOKEN_KEY: z.string().min(40),
+});
+
+/** Enable Banking credentials, or null when not set up (the bank link then reports "unavailable"). */
+export function bankEnv(): z.infer<typeof bank> | null {
+  if (!process.env.ENABLE_BANKING_APP_ID) return null;
+  return parse(bank, "bank");
+}
+
+const cron = z.object({ CRON_SECRET: z.string().min(16) });
+
+/** Shared secret Vercel Cron sends as a bearer token. */
+export function cronEnv() {
+  return parse(cron, "cron");
+}
