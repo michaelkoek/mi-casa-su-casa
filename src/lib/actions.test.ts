@@ -13,6 +13,8 @@ import {
   planDay,
   planMeal,
   saveRecipe,
+  setBudget,
+  addCategory,
   toggleSignal,
   toggleTask,
 } from "./actions";
@@ -21,6 +23,25 @@ import { createSeed } from "./seed";
 const now = new Date("2026-10-24T14:00:00");
 
 describe("actions", () => {
+  it("addCategory accepts a null budget", () => {
+    const s = createSeed(now);
+    const next = addCategory("Abonnementen", null)(s);
+    expect(next.categories).toHaveLength(s.categories.length + 1);
+    expect(next.categories.at(-1)).toMatchObject({ name: "Abonnementen", budgetCents: null });
+  });
+
+  it("setBudget changes only that category and can clear it", () => {
+    const s = createSeed(now);
+    const set = setBudget("food", 30000)(s);
+    expect(set.categories.find((c) => c.id === "food")?.budgetCents).toBe(30000);
+    const cleared = setBudget("food", null)(s);
+    expect(cleared.categories.find((c) => c.id === "food")?.budgetCents).toBeNull();
+    for (const c of s.categories.filter((c) => c.id !== "food")) {
+      expect(cleared.categories.find((x) => x.id === c.id)).toBe(c);
+      expect(set.categories.find((x) => x.id === c.id)).toBe(c);
+    }
+  });
+
   it("toggles a task done and back", () => {
     const s = createSeed(now);
     const done = toggleTask("t1", now)(s);

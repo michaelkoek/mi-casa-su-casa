@@ -64,22 +64,42 @@ export function isSpending(t: Transaction): boolean {
   return t.amountCents < 0 && !t.transfer;
 }
 
-export type BudgetLine = { category: Category; spentCents: number; ratio: number; over: boolean };
+/** Upper bound for any amount in cents; same bound the sync schema enforces. */
+export const MAX_CENTS = 1_000_000_000;
 
-/** Spending per category for one month (YYYY-MM); only spending counts, see isSpending. */
+export type BudgetLine = {
+  category: Category;
+  spentCents: number;
+  /** spent / budget; 0 when budgetCents is null or 0 */
+  ratio: number;
+  /** false when budgetCents is null */
+  over: boolean;
+};
+
+/** Spending per category for one month (YYYY-MM); only spending counts, see isSpending. Categories without a budget (null) only report spending. */
 export function budgetSummary(transactions: Transaction[], categories: Category[], month: string) {
   const inMonth = transactions.filter((t) => t.date.startsWith(month) && isSpending(t));
   const lines: BudgetLine[] = categories.map((category) => {
     const spentCents = -inMonth
       .filter((t) => t.categoryId === category.id)
       .reduce((sum, t) => sum + t.amountCents, 0);
-    const ratio = category.budgetCents > 0 ? spentCents / category.budgetCents : 0;
-    return { category, spentCents, ratio, over: spentCents > category.budgetCents };
+    const budget = category.budgetCents;
+    if (budget === null) return { category, spentCents, ratio: 0, over: false };
+    return { category, spentCents, ratio: budget > 0 ? spentCents / budget : 0, over: spentCents > budget };
   });
   const totalSpentCents = -inMonth.reduce((sum, t) => sum + t.amountCents, 0);
-  const totalBudgetCents = categories.reduce((sum, c) => sum + c.budgetCents, 0);
+  const totalBudgetCents = categories.reduce((sum, c) => sum + (c.budgetCents ?? 0), 0);
+  const budgetedSpentCents = lines.filter((l) => l.category.budgetCents !== null).reduce((sum, l) => sum + l.spentCents, 0);
+  const hasBudget = categories.some((c) => c.budgetCents !== null);
   const uncategorized = inMonth.filter((t) => t.categoryId === null);
-  return { lines, totalSpentCents, totalBudgetCents, uncategorized };
+  return { lines, totalSpentCents, totalBudgetCents, budgetedSpentCents, hasBudget, uncategorized };
+}
+
+/** Cents to the text a user would type: 45000 -> "450", 45050 -> "450,50", 45005 -> "450,05". Never a thousands separator. */
+export function centsToEuroInput(cents: number): string {
+  const whole = Math.floor(cents / 100);
+  const rest = cents % 100;
+  return rest === 0 ? String(whole) : `${whole},${String(rest).padStart(2, "0")}`;
 }
 
 /** Parses "12,50", "12.5" or "€ 12" into cents. Returns null for anything that is not a positive amount. */

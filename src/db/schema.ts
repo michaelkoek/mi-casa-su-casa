@@ -158,7 +158,7 @@ export const categories = pgTable(
     householdId: hid(),
     id: text("id").notNull(),
     name: text("name").notNull(),
-    budgetCents: integer("budget_cents").notNull(),
+    budgetCents: integer("budget_cents"),
     position: pos(),
     ...stamps,
   },

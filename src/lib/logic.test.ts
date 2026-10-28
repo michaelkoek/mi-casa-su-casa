@@ -3,6 +3,7 @@ import {
   addDays,
   budgetSummary,
   categorize,
+  centsToEuroInput,
   completeChore,
   doseProgress,
   findRecipeByName,
@@ -100,6 +101,62 @@ describe("budgetSummary", () => {
     const s = budgetSummary(tx, categories, "2026-10");
     expect(s.uncategorized.map((t) => t.id)).not.toContain("6");
     expect(s.totalSpentCents).toBe(12000 + 24100 + 1849);
+  });
+});
+
+describe("budgetSummary without budgets", () => {
+  const categories: Category[] = [
+    { id: "food", name: "Boodschappen", budgetCents: 45000 },
+    { id: "home", name: "Huis", budgetCents: 20000 },
+    { id: "out", name: "Uit eten", budgetCents: null },
+  ];
+  const base = { source: "bank" as const, accountId: null, description: null, transfer: false };
+  const tx: Transaction[] = [
+    { id: "1", date: "2026-10-02", counterparty: "AH", amountCents: -12000, categoryId: "food", ...base },
+    { id: "2", date: "2026-10-03", counterparty: "Gamma", amountCents: -24100, categoryId: "home", ...base },
+    { id: "3", date: "2026-10-05", counterparty: "Kruidvat", amountCents: -1849, categoryId: null, ...base },
+    { id: "4", date: "2026-10-06", counterparty: "Restaurant", amountCents: -6000, categoryId: "out", ...base },
+  ];
+  it("reports spending only for a category without budget", () => {
+    const s = budgetSummary(tx, categories, "2026-10");
+    const out = s.lines[2];
+    expect(out.spentCents).toBe(6000);
+    expect(out.ratio).toBe(0);
+    expect(out.over).toBe(false);
+    expect(s.totalBudgetCents).toBe(65000);
+    expect(s.budgetedSpentCents).toBe(12000 + 24100);
+    expect(s.hasBudget).toBe(true);
+    expect(s.totalSpentCents).toBe(12000 + 24100 + 1849 + 6000);
+  });
+  it("handles no budgets at all", () => {
+    const none = categories.map((c) => ({ ...c, budgetCents: null }));
+    const s = budgetSummary(tx, none, "2026-10");
+    expect(s.hasBudget).toBe(false);
+    expect(s.totalBudgetCents).toBe(0);
+    expect(s.budgetedSpentCents).toBe(0);
+    expect(s.totalSpentCents).toBe(12000 + 24100 + 1849 + 6000);
+  });
+});
+
+describe("parseEuroToCents edge cases for budgets", () => {
+  it.each(["", "abc", "0", "-5", "  "])("rejects %j", (input) => {
+    expect(parseEuroToCents(input)).toBeNull();
+  });
+});
+
+describe("centsToEuroInput", () => {
+  it.each([
+    [45000, "450"],
+    [45050, "450,50"],
+    [45005, "450,05"],
+    [123456, "1234,56"],
+    [0, "0"],
+    [5, "0,05"],
+    [99, "0,99"],
+    [100, "1"],
+  ])("formats %i", (cents, text) => {
+    expect(centsToEuroInput(cents)).toBe(text);
+    if (cents > 0) expect(parseEuroToCents(centsToEuroInput(cents))).toBe(cents); // 0 is deliberately not parseable
   });
 });
 

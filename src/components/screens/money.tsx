@@ -5,14 +5,16 @@ import clsx from "clsx";
 import { AnimatePresence, motion } from "motion/react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
-import { useState } from "react";
-import { categorizeTransaction } from "@/lib/actions";
-import { budgetSummary, formatEuro, toDateKey } from "@/lib/logic";
+import { useState, type FormEvent } from "react";
+import { categorizeTransaction, setBudget } from "@/lib/actions";
+import { MAX_CENTS, budgetSummary, centsToEuroInput, formatEuro, parseEuroToCents, toDateKey } from "@/lib/logic";
 import { useHousehold, useNow } from "@/lib/store";
+import type { Category } from "@/lib/types";
 import { BankStrip } from "../bank";
-import { SoftButton } from "../form";
+import { Field, PrimaryButton, SoftButton } from "../form";
 import { PiggyArt } from "../illustrations";
 import { Screen, SectionTitle } from "../screen";
+import { Sheet } from "../sheet";
 import { useUI } from "../ui-provider";
 
 export function MoneyScreen() {
@@ -30,9 +32,11 @@ function Money() {
   const { act, openSheet } = useUI();
   const [remember, setRemember] = useState(true);
   const [openCat, setOpenCat] = useState<string | null>(null);
+  const [budgetId, setBudgetId] = useState<string | null>(null);
+  const [budgetOpen, setBudgetOpen] = useState(false);
   const month = toDateKey(now).slice(0, 7);
   const summary = budgetSummary(state.transactions, state.categories, month);
-  const left = summary.totalBudgetCents - summary.totalSpentCents;
+  const left = summary.totalBudgetCents - summary.budgetedSpentCents;
   const monthName = now.toLocaleDateString("nl-NL", { month: "long" });
 
   const monthCount = state.transactions.filter((x) => x.date.startsWith(month)).length;
@@ -42,8 +46,10 @@ function Money() {
       <section className="pop relative overflow-hidden rounded-[26px] bg-tile-money p-5">
         <p className="relative z-10 text-[13px] font-medium capitalize text-ink-2">{monthName}</p>
         <p className="num relative z-10 mt-1 text-4xl font-bold tracking-tight">{formatEuro(summary.totalSpentCents)}</p>
-        <p className={clsx("relative z-10 mt-1 text-sm font-medium", left < 0 ? "text-bad" : "text-ink-2")}>
-          {left >= 0 ? t("under", { amount: formatEuro(left, true) }) : t("over", { amount: formatEuro(-left, true) })}
+        <p className={clsx("relative z-10 mt-1 text-sm font-medium", summary.hasBudget && left < 0 ? "text-bad" : "text-ink-2")}>
+          {!summary.hasBudget
+            ? t("spentOnly")
+            : left >= 0 ? t("under", { amount: formatEuro(left, true) }) : t("over", { amount: formatEuro(-left, true) })}
         </p>
         <span className="pointer-events-none absolute -right-3 -top-1 opacity-90"><PiggyArt /></span>
       </section>
@@ -93,6 +99,7 @@ function Money() {
       <div className="rounded-[22px] bg-surface px-4 py-1">
         {summary.lines.map((line) => {
           const open = openCat === line.category.id;
+          const budget = line.category.budgetCents;
           const txs = state.transactions
             .filter((x) => x.categoryId === line.category.id && x.date.startsWith(month))
             .sort((a, b) => b.date.localeCompare(a.date));
@@ -102,17 +109,23 @@ function Money() {
                 <span className="flex items-center justify-between gap-2">
                   <span className="font-medium">{line.category.name}</span>
                   <span className="flex items-center gap-1.5">
-                    <span className={clsx("num text-[13px]", line.over ? "font-semibold text-bad" : "text-ink-3")}>
-                      {formatEuro(line.spentCents, true)} / {formatEuro(line.category.budgetCents, true)}
-                    </span>
+                    {budget !== null ? (
+                      <span className={clsx("num text-[13px]", line.over ? "font-semibold text-bad" : "text-ink-3")}>
+                        {formatEuro(line.spentCents, true)} / {formatEuro(budget, true)}
+                      </span>
+                    ) : (
+                      <span className="num text-[13px] text-ink-3">{formatEuro(line.spentCents, true)}</span>
+                    )}
                     <CaretDown size={14} className={clsx("text-ink-3 transition-transform duration-300", open && "rotate-180")} />
                   </span>
                 </span>
-                <span className="mt-2 block h-2 overflow-hidden rounded-full bg-bg">
-                  <motion.span className={clsx("block h-full rounded-full", line.over ? "bg-accent" : "bg-ink")}
-                    initial={false} animate={{ width: `${Math.min(100, Math.round(line.ratio * 100))}%` }}
-                    transition={{ type: "spring", stiffness: 200, damping: 30 }} />
-                </span>
+                {budget !== null && (
+                  <span className="mt-2 block h-2 overflow-hidden rounded-full bg-bg">
+                    <motion.span className={clsx("block h-full rounded-full", line.over ? "bg-accent" : "bg-ink")}
+                      initial={false} animate={{ width: `${Math.min(100, Math.round(line.ratio * 100))}%` }}
+                      transition={{ type: "spring", stiffness: 200, damping: 30 }} />
+                  </span>
+                )}
               </button>
               <AnimatePresence initial={false}>
                 {open && (
@@ -128,6 +141,15 @@ function Money() {
                         <span className="num">{formatEuro(x.amountCents)}</span>
                       </li>
                     ))}
+                    <li className="pb-3">
+                      <button type="button" onClick={() => { setBudgetId(line.category.id); setBudgetOpen(true); }}
+                        className="press flex min-h-11 w-full items-center justify-between gap-3 rounded-2xl bg-bg px-4 text-sm">
+                        <span className="text-ink-2">
+                          {budget !== null ? t("budget.line", { amount: formatEuro(budget, true) }) : t("budget.none")}
+                        </span>
+                        <span className="font-semibold">{budget !== null ? t("budget.edit") : t("budget.set")}</span>
+                      </button>
+                    </li>
                   </motion.ul>
                 )}
               </AnimatePresence>
@@ -135,6 +157,10 @@ function Money() {
           );
         })}
       </div>
+
+      <BudgetSheet category={state.categories.find((c) => c.id === budgetId) ?? null}
+        spentCents={summary.lines.find((l) => l.category.id === budgetId)?.spentCents ?? 0}
+        open={budgetOpen} onClose={() => setBudgetOpen(false)} />
 
       <SoftButton className="mt-3 w-full" onClick={() => openSheet("expense")}>
         <Plus size={18} weight="bold" /> {t("addCash")}
@@ -153,5 +179,47 @@ function NavTile({ href, Icon, title, sub }: { href: string; Icon: Icon; title: 
         <span className="mt-0.5 block text-[13px] leading-snug text-ink-3">{sub}</span>
       </span>
     </Link>
+  );
+}
+
+/** Set, change or clear the monthly budget of one category. */
+function BudgetSheet({ category, spentCents, open, onClose }: { category: Category | null; spentCents: number; open: boolean; onClose: () => void }) {
+  const t = useTranslations("money.budget");
+  return (
+    <Sheet open={open && category !== null} onClose={onClose} title={category ? t("title", { category: category.name }) : ""}>
+      {category && <BudgetForm key={category.id} category={category} spentCents={spentCents} onClose={onClose} />}
+    </Sheet>
+  );
+}
+
+function BudgetForm({ category, spentCents, onClose }: { category: Category; spentCents: number; onClose: () => void }) {
+  const t = useTranslations("money.budget");
+  const { act } = useUI();
+  const [amount, setAmount] = useState(category.budgetCents === null ? "" : centsToEuroInput(category.budgetCents));
+  const [error, setError] = useState<string | null>(null);
+
+  const submit = (e: FormEvent) => {
+    e.preventDefault();
+    const cents = parseEuroToCents(amount);
+    if (cents === null || cents > MAX_CENTS) return setError(t("amountError"));
+    if (cents === category.budgetCents) return onClose();
+    onClose();
+    act(t("saved", { category: category.name, amount: formatEuro(cents, true) }), setBudget(category.id, cents));
+  };
+
+  const clear = () => {
+    onClose();
+    act(t("cleared", { category: category.name }), setBudget(category.id, null));
+  };
+
+  return (
+    <form onSubmit={submit} className="flex flex-col gap-5">
+      <p className="text-[13px] text-ink-3">{t("spent", { amount: formatEuro(spentCents) })}</p>
+      <Field label={t("amount")} inputMode="decimal" placeholder="450" value={amount} autoFocus error={error}
+        hint={category.budgetCents === null ? t("hint") : undefined}
+        onChange={(e) => { setAmount(e.target.value); setError(null); }} />
+      <PrimaryButton type="submit">{t("save")}</PrimaryButton>
+      {category.budgetCents !== null && <SoftButton className="w-full" onClick={clear}>{t("clear")}</SoftButton>}
+    </form>
   );
 }

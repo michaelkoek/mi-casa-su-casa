@@ -47,7 +47,8 @@ export type HomeProject = {
   materials: Material[];
 };
 
-export type Category = { id: string; name: string; budgetCents: number };
+/** budgetCents: null = geen budget, alleen uitgaven tonen. */
+export type Category = { id: string; name: string; budgetCents: number | null };
 
 export type Transaction = {
   id: string;

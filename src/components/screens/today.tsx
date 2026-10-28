@@ -211,7 +211,9 @@ function Bento({ openCount }: { openCount: number }) {
       </div>
       <div className="flex flex-col gap-2.5">
         <Tile href="/geld" tone="bg-tile-money" h="h-44" i={1} title={t("money")}
-          sub={food ? t("moneySub", { spent: formatEuro(food.spentCents, true), budget: formatEuro(food.category.budgetCents, true) }) : ""}>
+          sub={food ? (food.category.budgetCents !== null
+            ? t("moneySub", { spent: formatEuro(food.spentCents, true), budget: formatEuro(food.category.budgetCents, true) })
+            : t("moneySubSpent", { spent: formatEuro(food.spentCents, true) })) : ""}>
           <PiggyArt />
         </Tile>
         <Tile href="/huis?tab=klusjes" tone="bg-tile-jobs" h="h-44" i={3} title={t("projects")}

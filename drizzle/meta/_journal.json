@@ -29,6 +29,13 @@
       "when": 1793136278303,
       "tag": "0003_transactions_drop_position",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793217764416,
+      "tag": "0004_categories_budget_nullable",
+      "breakpoints": true
     }
   ]
 }

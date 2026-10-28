@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import * as actions from "../actions";
+import { MAX_CENTS } from "../logic";
 import { createSeed, createStarter } from "../seed";
 import { COLLECTION_NAMES, type Change } from "./collections";
 import { diffState } from "./diff";
@@ -45,6 +46,8 @@ describe("parseChangeset", () => {
     addGrowth: actions.addGrowth(10000, 78, "2026-10-01"),
     cycleStock: actions.cycleStock("st3"),
     setSize: actions.setSize("z1", "92", null),
+    clearBudget: actions.setBudget("food", null),
+    setBudget: actions.setBudget("food", 30000),
   };
 
   for (const [name, fn] of Object.entries(updaters)) {
@@ -56,6 +59,15 @@ describe("parseChangeset", () => {
       }
     });
   }
+
+  it("handles nullable and bounded category budgets", () => {
+    expect(parseChangeset(cs(update({ budgetCents: null }, "categories", "food"))).ok).toBe(true);
+    for (const bad of [-1, "450", MAX_CENTS + 1]) {
+      expect(parseChangeset(cs(update({ budgetCents: bad }, "categories", "food"))).ok).toBe(false);
+    }
+    const row = { id: "k9", name: "Abonnementen", budgetCents: null, position: 9 };
+    expect(parseChangeset(cs({ op: "insert", c: "categories", row })).ok).toBe(true);
+  });
 
   it("rejects an unknown collection", () => {
     expect(parseChangeset(cs({ op: "delete", c: "households", key: "x" })).ok).toBe(false);

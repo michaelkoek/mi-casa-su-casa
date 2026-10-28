@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MAX_CENTS } from "../logic";
 import { COLLECTIONS, type Change, type Changeset, type CollectionName, type RowMap } from "./collections";
 
 /* Zod schemas for rows and changesets. Shared by the server action and the tests. Pure. */
@@ -15,7 +16,7 @@ const date = z
   });
 const iso = z.iso.datetime();
 const position = z.number().int().min(0).max(100000);
-const cents = z.number().int().min(0).max(1_000_000_000);
+const cents = z.number().int().min(0).max(MAX_CENTS);
 const slot = z.union([id, z.null()]);
 
 const priority = z.enum(["high", "medium", "low"]);
@@ -36,7 +37,7 @@ export const rowSchemas: { [C in CollectionName]: z.ZodType<RowMap[C]> } = {
   }),
   projects: z.strictObject({ id, title: text, room: text, kind, priority, status, costCents: cents, position }),
   materials: z.strictObject({ id, projectId: id, name: text, bought: z.boolean(), position }),
-  categories: z.strictObject({ id, name: text, budgetCents: cents, position }),
+  categories: z.strictObject({ id, name: text, budgetCents: z.union([cents, z.null()]), position }),
   transactions: z.strictObject({
     id, date, counterparty: text, amountCents: z.number().int().min(-1_000_000_000).max(1_000_000_000),
     categoryId: z.union([id, z.null()]), source: z.enum(["bank", "manual"]),

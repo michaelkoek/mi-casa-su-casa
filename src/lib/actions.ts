@@ -98,7 +98,7 @@ export const addExpense = (amountCents: number, counterparty: string, categoryId
   ],
 });
 
-export const setBudget = (categoryId: string, budgetCents: number) => (s: S): S => ({
+export const setBudget = (categoryId: string, budgetCents: number | null) => (s: S): S => ({
   ...s,
   categories: s.categories.map((c) => (c.id === categoryId ? { ...c, budgetCents } : c)),
 });
@@ -109,7 +109,7 @@ export const setTransfer = (txId: string, transfer: boolean) => (s: S): S => ({
   transactions: s.transactions.map((t) => (t.id === txId ? { ...t, transfer } : t)),
 });
 
-export const addCategory = (name: string, budgetCents: number) => (s: S): S => ({
+export const addCategory = (name: string, budgetCents: number | null) => (s: S): S => ({
   ...s,
   categories: [...s.categories, { id: uid("k"), name, budgetCents }],
 });

@@ -23,6 +23,12 @@ describe("createStarter", () => {
     expect(s.signals.every((x) => x.openedAt === null && x.openedBy === null)).toBe(true);
   });
 
+  it("starts every category without a budget", () => {
+    expect(s.categories.length).toBeGreaterThan(0);
+    expect(s.categories.every((c) => c.budgetCents === null)).toBe(true);
+    expect(createSeed(now).categories.every((c) => c.budgetCents !== null)).toBe(true);
+  });
+
   it("rotates every chore over all members", () => {
     expect(s.chores.length).toBeGreaterThan(0);
     for (const c of s.chores) expect(c.rotation).toEqual(["m1", "m2"]);

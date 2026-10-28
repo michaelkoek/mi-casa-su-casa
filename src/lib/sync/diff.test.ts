@@ -66,6 +66,14 @@ describe("diffState / applyChangeset", () => {
     });
   }
 
+  it("round-trips clearing a budget (null)", () => {
+    const next = actions.setBudget("food", null)(seed);
+    expect(next.categories.find((c) => c.id === "food")?.budgetCents).toBeNull();
+    const changes = diffState(seed, next);
+    expect(changes).toHaveLength(1);
+    expect(withBank(applyChangeset(seed, changes), next)).toEqual(next);
+  });
+
   it("toggleTask gives one update with only doneAt", () => {
     const changes = diffState(seed, actions.toggleTask("t1", now)(seed));
     expect(changes).toHaveLength(1);

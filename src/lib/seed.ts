@@ -181,7 +181,7 @@ export function createSeed(now = new Date()): HouseholdState {
 
 /**
  * Starting data for a real household: the standard signals, chores, budget
- * categories and care days, but none of the demo content.
+ * categories without a budget and care days, but none of the demo content.
  */
 export function createStarter(members: Member[], now = new Date()): HouseholdState {
   const demo = createSeed(now);
@@ -193,6 +193,7 @@ export function createStarter(members: Member[], now = new Date()): HouseholdSta
     members,
     signals: demo.signals.map((s) => ({ ...s, openedBy: null, openedAt: null })),
     chores: demo.chores.map((c, i) => ({ ...c, rotation: [...rotation], nextDue: addDays(today, i + 1) })),
+    categories: demo.categories.map((c) => ({ ...c, budgetCents: null })),
     tasks: [],
     projects: [],
     transactions: [],
