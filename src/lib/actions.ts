@@ -1,3 +1,4 @@
+import { shopKey } from "./insights";
 import { cleanNames, completeChore, findRecipeByName, missingIngredients, normalizeItem, toDateKey, uid } from "./logic";
 import type {
   CareDay,
@@ -75,11 +76,13 @@ export const materialsToShopping = (projectId: string) => (s: S): S => {
   return needItems(project.materials.filter((m) => !m.bought).map((m) => m.name), "project")(s);
 };
 
+/** Sets the category; with `remember`, also adds a rule for the shop (all its branches) unless one already matches. */
 export const categorizeTransaction = (txId: string, categoryId: string, remember: boolean) => (s: S): S => {
   const tx = s.transactions.find((t) => t.id === txId);
+  const contains = tx ? shopKey(tx.counterparty) : "";
   const rules =
-    remember && tx && !s.rules.some((r) => tx.counterparty.toLowerCase().includes(r.contains.toLowerCase()))
-      ? [...s.rules, { id: uid("r"), contains: tx.counterparty.toLowerCase(), categoryId }]
+    remember && tx && contains && !s.rules.some((r) => tx.counterparty.toLowerCase().includes(r.contains.toLowerCase()))
+      ? [...s.rules, { id: uid("r"), contains, categoryId }]
       : s.rules;
   return { ...s, rules, transactions: s.transactions.map((t) => (t.id === txId ? { ...t, categoryId } : t)) };
 };

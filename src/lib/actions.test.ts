@@ -41,6 +41,12 @@ describe("actions", () => {
     const next = categorizeTransaction("x12", "home", true)(s);
     expect(next.transactions.find((t) => t.id === "x12")?.categoryId).toBe("home");
     expect(next.rules.some((r) => r.contains === "gamma utrecht" && r.categoryId === "home")).toBe(true);
+    // A rule covers every branch of a shop, not just this one.
+    const branch = categorizeTransaction("x13", "child", true)({
+      ...s,
+      transactions: s.transactions.map((t) => (t.id === "x13" ? { ...t, counterparty: "Kruidvat 7731 Utrecht" } : t)),
+    });
+    expect(branch.rules.at(-1)?.contains).toBe("kruidvat");
     const noRule = categorizeTransaction("x13", "child", false)(s);
     expect(noRule.rules).toHaveLength(s.rules.length);
   });

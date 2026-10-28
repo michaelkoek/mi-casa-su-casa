@@ -206,12 +206,13 @@ function BankPicker({ open, onClose }: { open: boolean; onClose: () => void }) {
 
   return (
     <Sheet open={open} onClose={onClose} title={t("pickTitle")}>
-      <h2 className="mb-3 mt-1 text-xl font-bold">{t("pickTitle")}</h2>
-      <label className="flex h-12 items-center gap-2 rounded-2xl bg-surface px-3.5">
-        <MagnifyingGlass size={18} className="text-ink-3" />
-        <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t("search")} aria-label={t("search")}
-          className="h-full min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-ink-3" />
-      </label>
+      {state.status !== "error" && (
+        <label className="mt-1 flex h-12 items-center gap-2 rounded-2xl bg-surface px-3.5">
+          <MagnifyingGlass size={18} className="text-ink-3" />
+          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t("search")} aria-label={t("search")}
+            className="h-full min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-ink-3" />
+        </label>
+      )}
 
       {state.status === "loading" && (
         <div aria-hidden="true" className="mt-3 flex flex-col gap-2">
@@ -220,7 +221,7 @@ function BankPicker({ open, onClose }: { open: boolean; onClose: () => void }) {
       )}
 
       {state.status === "error" && (
-        <div className="mt-4 rounded-[22px] bg-surface p-4 text-sm">
+        <div className="mt-1 rounded-[22px] bg-surface p-4 text-sm">
           <p>{t(state.reason)}</p>
           {state.reason === "failed" && (
             <SoftButton className="mt-3 w-full" onClick={() => { setState({ status: "loading" }); setAttempt((n) => n + 1); }}>

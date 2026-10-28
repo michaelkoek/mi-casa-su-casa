@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { categorizeTransaction, setTransfer } from "@/lib/actions";
+import { shopName } from "@/lib/insights";
 import { addDays, formatEuro, toDateKey } from "@/lib/logic";
 import { useHousehold, useNow } from "@/lib/store";
 import type { HouseholdState, Transaction } from "@/lib/types";
@@ -119,7 +120,7 @@ function Transactions() {
 
       {days.map(([date, txs]) => (
         <section key={date}>
-          <h2 className="mx-0.5 mb-2 mt-6 text-[13px] font-semibold capitalize text-ink-3">{dayLabel(date)}</h2>
+          <h2 className="mx-0.5 mb-2 mt-6 text-[13px] font-semibold text-ink-3 first-letter:uppercase">{dayLabel(date)}</h2>
           <ul className="rounded-[22px] bg-surface px-4">
             {txs.map((tx) => (
               <li key={tx.id} className="border-b border-line last:border-b-0">
@@ -173,10 +174,9 @@ function TransactionSheet({ tx, open, account, onClose }: { tx: Transaction | nu
     <Sheet open={open && tx !== null} onClose={onClose} title={tx?.counterparty ?? ""}>
       {tx && (
         <>
-          <p className="mt-1 text-[13px] text-ink-3">
+          <p className="text-[13px] text-ink-3 first-letter:uppercase">
             {new Date(`${tx.date}T12:00:00`).toLocaleDateString("nl-NL", { weekday: "long", day: "numeric", month: "long" })}
           </p>
-          <h2 className="mt-1 text-xl font-bold">{tx.counterparty}</h2>
           <p className={clsx("num mt-1 text-3xl font-bold tracking-tight", tx.transfer && "text-ink-3")}>
             {tx.amountCents > 0 ? `+ ${formatEuro(tx.amountCents)}` : formatEuro(tx.amountCents)}
           </p>
@@ -216,7 +216,7 @@ function TransactionSheet({ tx, open, account, onClose }: { tx: Transaction | nu
               </div>
               <label className="mt-3 flex min-h-11 items-center gap-3 text-sm text-ink-2">
                 <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} className="h-5 w-5 accent-[var(--accent-strong)]" />
-                {t("remember", { name: tx.counterparty })}
+                {t("remember", { name: shopName(tx.counterparty) })}
               </label>
             </>
           )}

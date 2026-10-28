@@ -66,6 +66,7 @@ describe("shopKey", () => {
     ["ALBERT HEIJN 2211 UTRECHT", "albert heijn"],
     ["Jumbo Leidsche Rijn", "jumbo leidsche rijn"],
     ["123 Bakkerij", "123 bakkerij"],
+    ["AH to go 5512", "ah to go"],
   ])("%s -> %s", (input, key) => {
     expect(shopKey(input)).toBe(key);
   });

@@ -61,10 +61,14 @@ export function averageBefore(txs: Transaction[], month: string, back: number, v
   return Math.round(months.reduce((sum, m) => sum + value(m), 0) / months.length);
 }
 
-/** Groups "Albert Heijn 1342" and "ALBERT HEIJN 2211 UTRECHT" as one shop: the text before the first digit. */
+/** Display name of a shop: "Albert Heijn 1342" -> "Albert Heijn" (the text before the first digit). */
+export function shopName(counterparty: string): string {
+  return counterparty.split(/\d/)[0].replace(/[\s*,.\-/]+$/, "").trim() || counterparty.trim();
+}
+
+/** Groups "Albert Heijn 1342" and "ALBERT HEIJN 2211 UTRECHT" as one shop. */
 export function shopKey(counterparty: string): string {
-  const head = counterparty.split(/\d/)[0].replace(/[\s*,.\-/]+$/, "").trim();
-  return (head || counterparty).toLowerCase().replace(/\s+/g, " ");
+  return shopName(counterparty).toLowerCase().replace(/\s+/g, " ");
 }
 
 export type Shop = { name: string; spentCents: number; count: number };
@@ -75,11 +79,7 @@ export function topShops(txs: Transaction[], categoryId: string | null, month: s
   for (const t of txs) {
     if (monthOf(t) !== month || t.categoryId !== categoryId || !isSpending(t)) continue;
     const key = shopKey(t.counterparty);
-    const shop = shops.get(key) ?? {
-      name: t.counterparty.split(/\d/)[0].trim() || t.counterparty,
-      spentCents: 0,
-      count: 0,
-    };
+    const shop = shops.get(key) ?? { name: shopName(t.counterparty), spentCents: 0, count: 0 };
     shop.spentCents -= t.amountCents;
     shop.count += 1;
     shops.set(key, shop);

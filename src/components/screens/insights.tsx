@@ -59,7 +59,7 @@ function Insights() {
       </Link>
       <PageHeader
         eyebrow={t("title")}
-        title={`${monthName(month)}${year}`}
+        title={`${monthName(month).charAt(0).toUpperCase()}${monthName(month).slice(1)}${year}`}
         action={
           <div className="flex gap-1.5">
             <button type="button" onClick={() => go(-1)} aria-label={t("prev")} className="press grid h-11 w-11 place-items-center rounded-full bg-surface">
