@@ -1,9 +1,10 @@
 "use client";
 
-import { Basket, CaretDown, ForkKnife, Newspaper, Plus, Trash, WashingMachine, Wine, Baby } from "@phosphor-icons/react";
+import { Basket, CaretDown, CaretRight, ForkKnife, Newspaper, Plus, Trash, WashingMachine, Wine, Baby } from "@phosphor-icons/react";
 import clsx from "clsx";
 import { AnimatePresence, motion } from "motion/react";
 import { useTranslations } from "next-intl";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import {
@@ -15,7 +16,7 @@ import {
   toggleSignal,
   toggleTask,
 } from "@/lib/actions";
-import { formatEuro, minutesAgo, nextAssignee, toDateKey, weekdayName } from "@/lib/logic";
+import { choresDueWithin, formatEuro, minutesAgo, nextAssignee, toDateKey, weekdayName } from "@/lib/logic";
 import { useHousehold, useMemberName, useNow } from "@/lib/store";
 import type { HomeProject, ProjectStatus, SignalIcon } from "@/lib/types";
 import { Checkbox, SoftButton } from "../form";
@@ -79,7 +80,7 @@ function Household() {
   const { act } = useUI();
   const [pulse, setPulse] = useState<string | null>(null);
   const today = toDateKey(now);
-  const chores = [...state.chores].sort((a, b) => a.nextDue.localeCompare(b.nextDue));
+  const chores = choresDueWithin(state.chores, today, 7);
   const openTasks = state.tasks.filter((x) => !x.doneAt).sort((a, b) => (a.due ?? "9").localeCompare(b.due ?? "9"));
 
   const dueLabel = (date: string) => {
@@ -127,6 +128,11 @@ function Household() {
 
       <SectionTitle aside={t("choresHint")}>{t("chores")}</SectionTitle>
       <div className="rounded-[22px] bg-surface px-4 py-1">
+        {chores.length === 0 && (
+          <p className="border-b border-line py-5 text-center text-ink-3">
+            {state.chores.length === 0 ? t("choresEmpty") : t("choresNone")}
+          </p>
+        )}
         {chores.map((c) => (
           <div key={c.id} className="flex items-center gap-3 border-b border-line py-3 last:border-b-0">
             <div className="min-w-0 flex-1">
@@ -144,6 +150,11 @@ function Household() {
             </button>
           </div>
         ))}
+        <Link href="/huis/vaste-taken" transitionTypes={["nav-forward"]}
+          className="press flex min-h-12 items-center justify-between py-3 text-sm font-semibold text-ink-2">
+          {state.chores.length === 0 ? t("choresAdd") : t("choresAll", { count: state.chores.length })}
+          <CaretRight size={18} className="text-ink-3" />
+        </Link>
       </div>
 
       <SectionTitle aside={t("tasksCount", { count: openTasks.length })}>{t("tasks")}</SectionTitle>

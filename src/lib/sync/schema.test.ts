@@ -31,6 +31,9 @@ describe("parseChangeset", () => {
     addTask: actions.addTask("Nieuw", "m2", "2026-10-30"),
     toggleSignal: actions.toggleSignal("paper", "m1", now),
     doneChore: actions.doneChore("c1", now),
+    addChore: actions.addChore({ title: "Ramen", intervalDays: 30, rotation: ["m1", "m2"], nextDue: "2026-10-30" }),
+    updateChore: actions.updateChore("c1", { intervalDays: 14 }),
+    removeChore: actions.removeChore("c2"),
     addMaterial: actions.addMaterial("p1", "Schroeven"),
     deleteShopping: actions.deleteShopping("s3"),
     categorizeTransaction: actions.categorizeTransaction("x12", "home", true),
@@ -97,6 +100,12 @@ describe("parseChangeset", () => {
     expect(parseChangeset({ ...cs(update({ title: "x" })), householdId: "abc" }).ok).toBe(true); // top-level extras are ignored, never read
   });
 
+  it("accepts chore inserts and deletes", () => {
+    const row = { id: "c9", title: "Ramen", intervalDays: 30, rotation: ["m1"], nextDue: "2026-10-30", position: 4 };
+    expect(parseChangeset(cs({ op: "insert", c: "chores", row })).ok).toBe(true);
+    expect(parseChangeset(cs({ op: "delete", c: "chores", key: "c1" })).ok).toBe(true);
+  });
+
   it("rejects an empty patch and more than 500 changes", () => {
     expect(parseChangeset(cs(update({}))).ok).toBe(false);
     expect(parseChangeset(cs()).ok).toBe(false);
@@ -122,6 +131,13 @@ describe("memberRefIssues", () => {
     expect(memberRefIssues([change("chores", { rotation: ["m1", "m9"] })], members)).not.toEqual([]);
     expect(memberRefIssues([change("care", { bring: "m9" })], members)).not.toEqual([]);
     expect(memberRefIssues([change("care", { pick: "m9" })], members)).not.toEqual([]);
+  });
+
+  it("checks rotation members on chore inserts", () => {
+    const ins = (rotation: string[]) =>
+      ({ op: "insert", c: "chores", row: { id: "c9", title: "x", intervalDays: 7, rotation, nextDue: "2026-10-30", position: 4 } }) as unknown as Change;
+    expect(memberRefIssues([ins(["m1", "m9"])], members)).not.toEqual([]);
+    expect(memberRefIssues([ins(["m1", "m2"])], members)).toEqual([]);
   });
 
   it("allows grandma, null and known members", () => {

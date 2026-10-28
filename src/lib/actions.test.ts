@@ -5,6 +5,9 @@ import {
   cycleStock,
   cycleCare,
   addShopping,
+  addChore,
+  removeChore,
+  updateChore,
   clearMeal,
   deleteShopping,
   materialsToShopping,
@@ -23,6 +26,42 @@ import { createSeed } from "./seed";
 const now = new Date("2026-10-24T14:00:00");
 
 describe("actions", () => {
+  it("addChore appends a trimmed chore and ignores an empty title", () => {
+    const s = createSeed(now);
+    const input = { title: " Ramen lappen ", intervalDays: 30, rotation: ["m2", "m1"], nextDue: "2026-10-30" };
+    const next = addChore(input, "c9")(s);
+    expect(next.chores).toHaveLength(s.chores.length + 1);
+    expect(next.chores.at(-1)).toEqual({ ...input, title: "Ramen lappen", id: "c9" });
+    expect(addChore({ ...input, title: "  " })(s)).toBe(s);
+  });
+
+  it("updateChore patches only the target and ignores an empty title", () => {
+    const s = createSeed(now);
+    const next = updateChore("c1", { intervalDays: 14, rotation: ["m2"] })(s);
+    expect(next.chores[0]).toMatchObject({ id: "c1", intervalDays: 14, rotation: ["m2"] });
+    expect(next.chores.slice(1)).toEqual(s.chores.slice(1));
+    next.chores.slice(1).forEach((c, i) => expect(c).toBe(s.chores[i + 1]));
+    expect(updateChore("c1", { title: " " })(s)).toBe(s);
+  });
+
+  it("addChore cuts the title to 100 chars; updateChore trims, cuts and ignores unknown ids", () => {
+    const s = createSeed(now);
+    const input = { title: "x".repeat(150), intervalDays: 7, rotation: ["m1"], nextDue: "2026-10-30" };
+    expect(addChore(input, "c9")(s).chores.at(-1)?.title).toHaveLength(100);
+    expect(updateChore("c1", { title: "  " + "y".repeat(150) })(s).chores[0].title).toBe("y".repeat(100));
+    expect(updateChore("nope", { intervalDays: 3 })(s).chores).toEqual(s.chores);
+  });
+
+  it("removeChore with an unknown id changes nothing", () => {
+    const s = createSeed(now);
+    expect(removeChore("nope")(s).chores).toEqual(s.chores);
+  });
+
+  it("removeChore removes only the target", () => {
+    const s = createSeed(now);
+    expect(removeChore("c2")(s).chores.map((c) => c.id)).toEqual(["c1", "c3", "c4"]);
+  });
+
   it("addCategory accepts a null budget", () => {
     const s = createSeed(now);
     const next = addCategory("Abonnementen", null)(s);

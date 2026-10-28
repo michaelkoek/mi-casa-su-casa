@@ -91,7 +91,7 @@ const ALL: Op[] = ["insert", "update", "delete"];
 export const COLLECTIONS: { [C in CollectionName]: CollectionDef } = {
   members: { key: "id", ordered: true, ops: ["update"], updatable: ["name"], timestamps: [] },
   signals: { key: "id", ordered: true, ops: ["update"], timestamps: ["openedAt"] },
-  chores: { key: "id", ordered: true, ops: ["update"], timestamps: [] },
+  chores: { key: "id", ordered: true, ops: ALL, timestamps: [] },
   tasks: { key: "id", ordered: true, ops: ALL, timestamps: ["doneAt"] },
   projects: { key: "id", ordered: true, ops: ALL, timestamps: [] },
   materials: { key: "id", ordered: true, ops: ALL, timestamps: [] },

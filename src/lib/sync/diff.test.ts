@@ -14,6 +14,9 @@ const cases: Record<string, (s: HouseholdState) => HouseholdState> = {
   addTask: actions.addTask("Nieuw", "m2", "2026-10-30"),
   toggleSignal: actions.toggleSignal("paper", "m1", now),
   doneChore: actions.doneChore("c1", now),
+  addChore: actions.addChore({ title: "Ramen", intervalDays: 30, rotation: ["m1", "m2"], nextDue: "2026-10-30" }),
+  updateChore: actions.updateChore("c1", { intervalDays: 14 }),
+  removeChore: actions.removeChore("c2"),
   addProject: actions.addProject({ title: "Nieuw", room: "Hal", kind: "finish", priority: "low", costCents: 100 }),
   setProjectStatus: actions.setProjectStatus("p1", "done"),
   addMaterial: actions.addMaterial("p1", "Schroeven"),
@@ -85,6 +88,19 @@ describe("diffState / applyChangeset", () => {
     const changes = diffState(seed, actions.addTask("Nieuw", "m2", null)(seed));
     expect(changes).toHaveLength(1);
     expect(changes[0]).toMatchObject({ op: "insert", c: "tasks" });
+  });
+
+  it("addChore gives one insert", () => {
+    const changes = diffState(seed, actions.addChore({ title: "Ramen", intervalDays: 30, rotation: ["m1", "m2"], nextDue: "2026-10-30" })(seed));
+    expect(changes).toHaveLength(1);
+    expect(changes[0]).toMatchObject({ op: "insert", c: "chores" });
+  });
+
+  it("removeChore gives a delete", () => {
+    expect(diffState(seed, actions.removeChore("c4")(seed))).toEqual([{ op: "delete", c: "chores", key: "c4" }]);
+    const changes = diffState(seed, actions.removeChore("c1")(seed));
+    expect(changes.filter((c) => c.op === "delete")).toEqual([{ op: "delete", c: "chores", key: "c1" }]);
+    for (const u of changes.filter((c) => c.op === "update")) expect(Object.keys((u as { patch: object }).patch)).toEqual(["position"]);
   });
 
   it("deleteShopping gives deletes plus position updates", () => {

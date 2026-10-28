@@ -3,6 +3,9 @@ import {
   addDays,
   budgetSummary,
   categorize,
+  choreRotation,
+  choresDueWithin,
+  parseIntervalDays,
   centsToEuroInput,
   completeChore,
   doseProgress,
@@ -54,6 +57,34 @@ describe("chores", () => {
     const done = completeChore(chore, "2026-10-26");
     expect(nextAssignee(done)).toBe("m2");
     expect(done.nextDue).toBe("2026-11-02");
+  });
+
+  it("choresDueWithin keeps overdue and the next days, sorted, without mutating", () => {
+    const mk = (id: string, nextDue: string): Chore => ({ ...chore, id, nextDue });
+    const input = [mk("a", "2026-11-01"), mk("b", "2026-10-31"), mk("c", "2026-10-24"), mk("d", "2026-10-20")];
+    const out = choresDueWithin(input, "2026-10-24", 7);
+    expect(out.map((c) => c.id)).toEqual(["d", "c", "b"]);
+    expect(input.map((c) => c.id)).toEqual(["a", "b", "c", "d"]);
+    expect(choresDueWithin([], "2026-10-24", 7)).toEqual([]);
+  });
+
+  it("choresDueWithin includes today+7 and excludes today+8; stable on ties", () => {
+    const mk = (id: string, nextDue: string): Chore => ({ ...chore, id, nextDue });
+    const out = choresDueWithin([mk("a", "2026-10-31"), mk("b", "2026-11-01"), mk("c", "2026-10-31")], "2026-10-24", 7);
+    expect(out.map((c) => c.id)).toEqual(["a", "c"]);
+  });
+
+  it("choreRotation alternates or fixes", () => {
+    expect(choreRotation(["m1", "m2"], "m2", true)).toEqual(["m2", "m1"]);
+    expect(choreRotation(["m1", "m2"], "m1", true)).toEqual(["m1", "m2"]);
+    expect(choreRotation(["m1", "m2"], "m2", false)).toEqual(["m2"]);
+  });
+
+  it("parseIntervalDays accepts 1..365 digits only", () => {
+    expect(parseIntervalDays("7")).toBe(7);
+    expect(parseIntervalDays(" 10 ")).toBe(10);
+    expect(parseIntervalDays("365")).toBe(365);
+    for (const bad of ["0", "366", "", "7.5", "-3", "abc"]) expect(parseIntervalDays(bad)).toBeNull();
   });
 });
 

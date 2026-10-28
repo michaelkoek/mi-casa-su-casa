@@ -46,6 +46,29 @@ export function completeChore(chore: Chore, today: string): Chore {
   };
 }
 
+/** Chores due on or before today + days (overdue included), sorted by nextDue ascending; ties keep input order. Does not mutate input. */
+export function choresDueWithin(chores: Chore[], today: string, days: number): Chore[] {
+  const limit = addDays(today, days);
+  return chores
+    .filter((c) => c.nextDue <= limit)
+    .map((c, i) => ({ c, i }))
+    .sort((a, b) => a.c.nextDue.localeCompare(b.c.nextDue) || a.i - b.i)
+    .map((x) => x.c);
+}
+
+/** Rotation for a chore: alternate -> first, then the other member ids in given order; fixed -> [first]. */
+export function choreRotation(memberIds: MemberId[], first: MemberId, alternate: boolean): MemberId[] {
+  return alternate ? [first, ...memberIds.filter((id) => id !== first)] : [first];
+}
+
+/** "7" -> 7. Returns null unless the trimmed input is only digits and the integer is 1..365. */
+export function parseIntervalDays(input: string): number | null {
+  const v = input.trim();
+  if (!/^\d+$/.test(v)) return null;
+  const n = Number(v);
+  return n >= 1 && n <= 365 ? n : null;
+}
+
 /** First rule whose text occurs in the counterparty, or else in the payment details, decides the category. */
 export function categorize(
   tx: { counterparty: string; description?: string | null },

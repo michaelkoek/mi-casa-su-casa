@@ -43,6 +43,28 @@ export const doneChore = (id: string, now: Date) => (s: S): S => ({
   chores: s.chores.map((c) => (c.id === id ? completeChore(c, toDateKey(now)) : c)),
 });
 
+type ChoreInput = { title: string; intervalDays: number; rotation: MemberId[]; nextDue: string };
+
+/** Appends a chore. Title is trimmed and cut to 100 chars; empty title leaves the state unchanged. */
+export const addChore = (input: ChoreInput, newId = uid("c")) => (s: S): S => {
+  const title = input.title.trim().slice(0, 100);
+  if (!title) return s;
+  return { ...s, chores: [...s.chores, { ...input, title, id: newId }] };
+};
+
+/** Patches one chore. An empty title in the patch leaves the state unchanged. */
+export const updateChore = (id: string, patch: Partial<ChoreInput>) => (s: S): S => {
+  const next = { ...patch };
+  if (patch.title !== undefined) {
+    const title = patch.title.trim().slice(0, 100);
+    if (!title) return s;
+    next.title = title;
+  }
+  return { ...s, chores: s.chores.map((c) => (c.id === id ? { ...c, ...next } : c)) };
+};
+
+export const removeChore = (id: string) => (s: S): S => ({ ...s, chores: s.chores.filter((c) => c.id !== id) });
+
 export const addProject = (p: { title: string; room: string; kind: ProjectKind; priority: Priority; costCents: number }) => (s: S): S => ({
   ...s,
   projects: [...s.projects, { id: uid("p"), status: "todo", materials: [], ...p }],
