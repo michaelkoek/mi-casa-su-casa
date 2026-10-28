@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   addDays,
+  canAddSignal,
+  cleanSignalLabel,
   budgetSummary,
   categorize,
   choreRotation,
@@ -259,5 +261,21 @@ describe("shopping logic", () => {
     expect(four.have).toEqual(["a", "b", "c", "d"]);
     expect(four.missing).toEqual(["e"]);
     expect(four.score).toBeCloseTo(0.8);
+  });
+});
+
+describe("signal labels", () => {
+  it("cleanSignalLabel trims and cuts to 40", () => {
+    expect(cleanSignalLabel(" Koffie op ")).toBe("Koffie op");
+    expect(cleanSignalLabel("   ")).toBe("");
+    expect(cleanSignalLabel("x".repeat(50))).toHaveLength(40);
+    expect(cleanSignalLabel(" " + "y".repeat(45))).toBe("y".repeat(40));
+  });
+
+  it("canAddSignal allows fewer than 12", () => {
+    const mk = (n: number) => Array.from({ length: n }, (_, i) => ({ id: `s${i}`, label: "x", icon: "trash" as const, openedBy: null, openedAt: null }));
+    expect(canAddSignal(mk(11))).toBe(true);
+    expect(canAddSignal(mk(12))).toBe(false);
+    expect(canAddSignal([])).toBe(true);
   });
 });

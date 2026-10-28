@@ -2,7 +2,12 @@ export type MemberId = string;
 
 export type Member = { id: MemberId; name: string };
 
-export type SignalIcon = "trash" | "paper" | "laundry" | "dishwasher" | "diaper" | "glass";
+export const SIGNAL_ICONS = [
+  "trash", "paper", "laundry", "dishwasher", "diaper", "glass",
+  "coffee", "toiletPaper", "plant", "package", "cart", "pet",
+  "broom", "bath", "shirt", "pill", "bulb", "drop",
+] as const;
+export type SignalIcon = (typeof SIGNAL_ICONS)[number];
 
 export type Signal = {
   id: string;

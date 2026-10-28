@@ -6,6 +6,9 @@ import {
   cycleCare,
   addShopping,
   addChore,
+  addSignal,
+  removeSignal,
+  updateSignal,
   removeChore,
   updateChore,
   clearMeal,
@@ -227,5 +230,48 @@ describe("actions", () => {
     expect(s.shopping.filter((x) => x.name === "Billendoekjes")).toHaveLength(1);
     s = cycleStock("st2")(cycleStock("st2")(cycleStock("st2")(s))); // low -> full -> half -> low
     expect(s.shopping.filter((x) => x.name === "Billendoekjes")).toHaveLength(1);
+  });
+
+  it("addSignal appends a closed signal, ignores an empty label and the 13th", () => {
+    const s = createSeed(now);
+    const next = addSignal({ label: " Koffie op ", icon: "coffee" }, "sg9")(s);
+    expect(next.signals.at(-1)).toEqual({ id: "sg9", label: "Koffie op", icon: "coffee", openedBy: null, openedAt: null });
+    expect(next.signals).toHaveLength(s.signals.length + 1);
+    expect(addSignal({ label: "  ", icon: "coffee" })(s)).toBe(s);
+    const full = { ...s, signals: Array.from({ length: 12 }, (_, i) => ({ ...s.signals[1], id: `f${i}` })) };
+    expect(addSignal({ label: "Nog een", icon: "coffee" })(full)).toBe(full);
+  });
+
+  it("updateSignal changes label and icon but keeps the open state", () => {
+    const s = createSeed(now);
+    const next = updateSignal("trash", { label: "Afval", icon: "broom" })(s);
+    expect(next.signals[0]).toEqual({ ...s.signals[0], label: "Afval", icon: "broom" });
+    expect(next.signals[0].openedBy).toBe("m2");
+    expect(next.signals[0].openedAt).not.toBeNull();
+    next.signals.slice(1).forEach((x, i) => expect(x).toBe(s.signals[i + 1]));
+    expect(updateSignal("trash", { label: " ", icon: "broom" })(s)).toBe(s);
+    expect(updateSignal("nope", { label: "X", icon: "broom" })(s).signals).toEqual(s.signals);
+  });
+
+  it("removeSignal removes only that signal", () => {
+    const s = createSeed(now);
+    const next = removeSignal("paper")(s);
+    expect(next.signals.map((x) => x.id)).toEqual(s.signals.map((x) => x.id).filter((x) => x !== "paper"));
+    expect(removeSignal("nope")(s).signals).toEqual(s.signals);
+  });
+});
+
+describe("signal limits", () => {
+  it("addSignal cuts overlong labels to MAX_SIGNAL_LABEL", () => {
+    const s = createSeed(new Date("2026-10-28T10:00:00Z"));
+    const base = { ...s, signals: [] };
+    const next = addSignal({ label: "x".repeat(60), icon: "coffee" }, "n1")(base);
+    expect(next.signals[0].label).toHaveLength(40);
+  });
+  it("addSignal is allowed at 11 and refused at 12", () => {
+    const s = createSeed(new Date("2026-10-28T10:00:00Z"));
+    const mk = (n: number) => ({ ...s, signals: Array.from({ length: n }, (_, i) => ({ id: `f${i}`, label: "x", icon: "trash" as const, openedBy: null, openedAt: null })) });
+    expect(addSignal({ label: "Y", icon: "coffee" }, "n")(mk(11)).signals).toHaveLength(12);
+    expect(addSignal({ label: "Y", icon: "coffee" }, "n")(mk(12)).signals).toHaveLength(12);
   });
 });

@@ -82,6 +82,11 @@ export function PrimaryButton({ children, ...rest }: { children: ReactNode } & R
   );
 }
 
+/** Keeps a sheet's main button in view on short phones while the form above it scrolls. */
+export function StickyAction({ children }: { children: ReactNode }) {
+  return <div className="sticky bottom-0 -mx-[18px] bg-bg px-[18px] pb-[env(safe-area-inset-bottom)] pt-3">{children}</div>;
+}
+
 export function SoftButton({ children, ...rest }: { children: ReactNode } & React.ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
     <button

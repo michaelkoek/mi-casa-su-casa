@@ -84,7 +84,6 @@
     "household": "Huishouden",
     "projects": "Klusjes",
     "signals": "Signalen",
-    "signalsHint": "tik om de ander te laten weten",
     "signalTap": "Tik om te melden",
     "signalOpen": "{name} · {minutes} min geleden",
     "signalSent": "{name} krijgt een melding",
@@ -126,6 +125,41 @@
       "toShopping": "Ontbrekende materialen op de lijst",
       "toShoppingDone": "Op de boodschappenlijst gezet"
     }
+  },
+  "signals": {
+    "edit": "Aanpassen",
+    "done": "Klaar",
+    "add": "Signaal toevoegen",
+    "emptyHint": "Laat de ander met één tik weten wat er moet gebeuren.",
+    "tapToEdit": "Tik om aan te passen",
+    "editLabel": "{label} aanpassen",
+    "max": "Maximaal {max} signalen.",
+    "full": "Je hebt al {max} signalen.",
+    "newTitle": "Nieuw signaal",
+    "editTitle": "Signaal aanpassen",
+    "presets": "Snel kiezen",
+    "preset": {
+      "coffee": "Koffie op",
+      "toiletPaper": "Wc-papier op",
+      "plants": "Planten water",
+      "package": "Pakketje binnen",
+      "groceries": "Boodschappen nodig"
+    },
+    "name": "Naam",
+    "namePlaceholder": "Bijv. Wasmand vol",
+    "previewEmpty": "Naam van je signaal",
+    "icon": "Icoon",
+    "icons": {
+      "trash": "Prullenbak", "paper": "Papier", "laundry": "Was", "dishwasher": "Vaatwasser", "diaper": "Luier",
+      "glass": "Glas", "coffee": "Koffie", "toiletPaper": "Wc-papier", "plant": "Plant", "package": "Pakketje",
+      "cart": "Boodschappen", "pet": "Huisdier", "broom": "Bezem", "bath": "Bad", "shirt": "Kleding",
+      "pill": "Medicijn", "bulb": "Lamp", "drop": "Water"
+    },
+    "save": "Opslaan",
+    "remove": "Verwijderen",
+    "added": "{label} toegevoegd",
+    "updated": "{label} aangepast",
+    "removed": "{label} verwijderd"
   },
   "chores": {
     "eyebrow": "Huis",

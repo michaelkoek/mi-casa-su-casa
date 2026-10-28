@@ -9,7 +9,7 @@ import { addChore, removeChore, updateChore } from "@/lib/actions";
 import { choreRotation, nextAssignee, parseIntervalDays, toDateKey } from "@/lib/logic";
 import { useHousehold, useMemberName, useNow } from "@/lib/store";
 import type { Chore, MemberId } from "@/lib/types";
-import { ChoiceGroup, Field, PrimaryButton, SoftButton } from "../form";
+import { ChoiceGroup, Field, PrimaryButton, SoftButton, StickyAction } from "../form";
 import { PageHeader, Screen } from "../screen";
 import { Sheet } from "../sheet";
 import { useUI } from "../ui-provider";
@@ -175,7 +175,9 @@ function ChoreForm({ chore, onDone }: { chore: Chore | null; onDone: () => void 
       )}
       <Field type="date" label={chore ? t("next") : t("first")} value={nextDue} error={dateError}
         onChange={(e) => { setNextDue(e.target.value); setDateError(null); }} />
-      <PrimaryButton type="submit">{t("save")}</PrimaryButton>
+      <StickyAction>
+        <PrimaryButton type="submit">{t("save")}</PrimaryButton>
+      </StickyAction>
       {chore && (
         <SoftButton className="w-full text-bad" onClick={() => { onDone(); act(t("removed", { title: chore.title }), removeChore(chore.id)); }}>
           <Trash size={18} /> {t("remove")}

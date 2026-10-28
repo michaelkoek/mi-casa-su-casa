@@ -7,6 +7,7 @@ import type {
   Medicine,
   Recipe,
   ShoppingItem,
+  Signal,
   Transaction,
 } from "./types";
 
@@ -178,6 +179,19 @@ export function formatDuration(ms: number): string {
 /** Minutes since a moment, as a short label: "zojuist", "12 min", "3 u". */
 export function minutesAgo(iso: string, now: Date): number {
   return Math.max(0, Math.round((now.getTime() - new Date(iso).getTime()) / 60000));
+}
+
+export const MAX_SIGNALS = 12;
+export const MAX_SIGNAL_LABEL = 40;
+
+/** Trims, cuts to 40 chars, trims again. "" means invalid. */
+export function cleanSignalLabel(input: string): string {
+  return input.trim().slice(0, MAX_SIGNAL_LABEL).trim();
+}
+
+/** True while there are fewer than MAX_SIGNALS signals. */
+export function canAddSignal(signals: Signal[]): boolean {
+  return signals.length < MAX_SIGNALS;
 }
 
 export function uid(prefix: string): string {

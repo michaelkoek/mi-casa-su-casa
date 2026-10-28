@@ -17,6 +17,9 @@ const cases: Record<string, (s: HouseholdState) => HouseholdState> = {
   addChore: actions.addChore({ title: "Ramen", intervalDays: 30, rotation: ["m1", "m2"], nextDue: "2026-10-30" }),
   updateChore: actions.updateChore("c1", { intervalDays: 14 }),
   removeChore: actions.removeChore("c2"),
+  addSignal: actions.addSignal({ label: "Koffie op", icon: "coffee" }),
+  updateSignal: actions.updateSignal("paper", { label: "Oud papier", icon: "paper" }),
+  removeSignal: actions.removeSignal("laundry"),
   addProject: actions.addProject({ title: "Nieuw", room: "Hal", kind: "finish", priority: "low", costCents: 100 }),
   setProjectStatus: actions.setProjectStatus("p1", "done"),
   addMaterial: actions.addMaterial("p1", "Schroeven"),
@@ -94,6 +97,23 @@ describe("diffState / applyChangeset", () => {
     const changes = diffState(seed, actions.addChore({ title: "Ramen", intervalDays: 30, rotation: ["m1", "m2"], nextDue: "2026-10-30" })(seed));
     expect(changes).toHaveLength(1);
     expect(changes[0]).toMatchObject({ op: "insert", c: "chores" });
+  });
+
+  it("addSignal gives one insert", () => {
+    const changes = diffState(seed, actions.addSignal({ label: "Koffie op", icon: "coffee" })(seed));
+    expect(changes).toHaveLength(1);
+    expect(changes[0]).toMatchObject({ op: "insert", c: "signals" });
+  });
+
+  it("updateSignal gives one update with label and icon only", () => {
+    const changes = diffState(seed, actions.updateSignal("paper", { label: "Oud papier", icon: "drop" })(seed));
+    expect(changes).toHaveLength(1);
+    expect(changes[0]).toMatchObject({ op: "update", c: "signals", key: "paper" });
+    expect(Object.keys((changes[0] as { patch: object }).patch).sort()).toEqual(["icon", "label"]);
+  });
+
+  it("removeSignal of the last signal gives one delete", () => {
+    expect(diffState(seed, actions.removeSignal("glass")(seed))).toEqual([{ op: "delete", c: "signals", key: "glass" }]);
   });
 
   it("removeChore gives a delete", () => {

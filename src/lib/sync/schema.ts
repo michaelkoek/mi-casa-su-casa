@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { MAX_CENTS } from "../logic";
+import { SIGNAL_ICONS } from "../types";
 import { COLLECTIONS, type Change, type Changeset, type CollectionName, type RowMap } from "./collections";
 
 /* Zod schemas for rows and changesets. Shared by the server action and the tests. Pure. */
@@ -22,7 +23,7 @@ const slot = z.union([id, z.null()]);
 const priority = z.enum(["high", "medium", "low"]);
 const kind = z.enum(["finish", "maintenance"]);
 const status = z.enum(["todo", "doing", "done"]);
-const signalIcon = z.enum(["trash", "paper", "laundry", "dishwasher", "diaper", "glass"]);
+const signalIcon = z.enum(SIGNAL_ICONS);
 
 export const rowSchemas: { [C in CollectionName]: z.ZodType<RowMap[C]> } = {
   members: z.strictObject({ id, name: text, position }),

@@ -1,5 +1,5 @@
 import { shopKey } from "./insights";
-import { cleanNames, completeChore, findRecipeByName, missingIngredients, normalizeItem, toDateKey, uid } from "./logic";
+import { canAddSignal, cleanNames, cleanSignalLabel, completeChore, findRecipeByName, missingIngredients, normalizeItem, toDateKey, uid } from "./logic";
 import type {
   CareDay,
   CareSlot,
@@ -11,6 +11,7 @@ import type {
   ProjectKind,
   ProjectStatus,
   ShoppingItem,
+  SignalIcon,
 } from "./types";
 
 /* Pure state updaters. Each one returns a new household state. */
@@ -300,3 +301,21 @@ export const cycleFood = (id: string) => (s: S): S => ({
   ...s,
   foods: s.foods.map((f) => (f.id === id ? { ...f, verdict: NEXT_VERDICT[f.verdict] } : f)),
 });
+
+type SignalInput = { label: string; icon: SignalIcon };
+
+/** Appends a closed signal. Empty label or MAX_SIGNALS reached leaves the state unchanged. */
+export const addSignal = (input: SignalInput, newId = uid("sg")) => (s: S): S => {
+  const label = cleanSignalLabel(input.label);
+  if (!label || !canAddSignal(s.signals)) return s;
+  return { ...s, signals: [...s.signals, { id: newId, label, icon: input.icon, openedBy: null, openedAt: null }] };
+};
+
+/** Changes label and icon only; the open state stays. Empty label leaves the state unchanged. */
+export const updateSignal = (id: string, input: SignalInput) => (s: S): S => {
+  const label = cleanSignalLabel(input.label);
+  if (!label) return s;
+  return { ...s, signals: s.signals.map((x) => (x.id === id ? { ...x, label, icon: input.icon } : x)) };
+};
+
+export const removeSignal = (id: string) => (s: S): S => ({ ...s, signals: s.signals.filter((x) => x.id !== id) });

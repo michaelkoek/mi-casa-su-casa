@@ -34,6 +34,9 @@ describe("parseChangeset", () => {
     addChore: actions.addChore({ title: "Ramen", intervalDays: 30, rotation: ["m1", "m2"], nextDue: "2026-10-30" }),
     updateChore: actions.updateChore("c1", { intervalDays: 14 }),
     removeChore: actions.removeChore("c2"),
+    addSignal: actions.addSignal({ label: "Koffie op", icon: "coffee" }),
+    updateSignal: actions.updateSignal("paper", { label: "Oud papier", icon: "drop" }),
+    removeSignal: actions.removeSignal("trash"),
     addMaterial: actions.addMaterial("p1", "Schroeven"),
     deleteShopping: actions.deleteShopping("s3"),
     categorizeTransaction: actions.categorizeTransaction("x12", "home", true),
@@ -62,6 +65,13 @@ describe("parseChangeset", () => {
       }
     });
   }
+
+  it("signal inserts check the icon", () => {
+    const row = { id: "sg9", label: "Koffie op", icon: "coffee", openedBy: null, openedAt: null, position: 6 };
+    expect(parseChangeset(cs({ op: "insert", c: "signals", row })).ok).toBe(true);
+    expect(parseChangeset(cs({ op: "insert", c: "signals", row: { ...row, icon: "rocket" } })).ok).toBe(false);
+    expect(parseChangeset(cs({ op: "delete", c: "signals", key: "paper" })).ok).toBe(true);
+  });
 
   it("handles nullable and bounded category budgets", () => {
     expect(parseChangeset(cs(update({ budgetCents: null }, "categories", "food"))).ok).toBe(true);
@@ -144,5 +154,17 @@ describe("memberRefIssues", () => {
     expect(memberRefIssues([change("chores", { rotation: ["m2", "m1"] })], members)).toEqual([]);
     expect(memberRefIssues([change("care", { bring: "grandma", pick: null })], members)).toEqual([]);
     expect(memberRefIssues([change("care", { bring: "m1" })], members)).toEqual([]);
+  });
+});
+
+describe("signal icon enum", () => {
+  const row = (icon: string) => ({ id: "sg9", label: "X", icon, openedBy: null, openedAt: null, position: 1 });
+  it("accepts every SIGNAL_ICONS value and rejects others", async () => {
+    const { SIGNAL_ICONS } = await import("../types");
+    expect(SIGNAL_ICONS).toHaveLength(18);
+    for (const icon of SIGNAL_ICONS) {
+      expect(parseChangeset(cs({ op: "insert", c: "signals", row: row(icon) })).ok).toBe(true);
+    }
+    expect(parseChangeset(cs({ op: "insert", c: "signals", row: row("") })).ok).toBe(false);
   });
 });

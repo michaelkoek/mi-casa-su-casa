@@ -1,6 +1,6 @@
 "use client";
 
-import { Basket, CaretDown, CaretRight, ForkKnife, Newspaper, Plus, Trash, WashingMachine, Wine, Baby } from "@phosphor-icons/react";
+import { Basket, CaretDown, CaretRight, PencilSimple, Plus } from "@phosphor-icons/react";
 import clsx from "clsx";
 import { AnimatePresence, motion } from "motion/react";
 import { useTranslations } from "next-intl";
@@ -16,21 +16,13 @@ import {
   toggleSignal,
   toggleTask,
 } from "@/lib/actions";
-import { choresDueWithin, formatEuro, minutesAgo, nextAssignee, toDateKey, weekdayName } from "@/lib/logic";
+import { canAddSignal, choresDueWithin, formatEuro, MAX_SIGNALS, minutesAgo, nextAssignee, toDateKey, weekdayName } from "@/lib/logic";
 import { useHousehold, useMemberName, useNow } from "@/lib/store";
-import type { HomeProject, ProjectStatus, SignalIcon } from "@/lib/types";
+import type { HomeProject, ProjectStatus } from "@/lib/types";
 import { Checkbox, SoftButton } from "../form";
 import { PageHeader, Screen, SectionTitle } from "../screen";
+import { SignalFace, SignalSheet } from "../signal-sheet";
 import { useUI } from "../ui-provider";
-
-const SIGNAL_ICONS: Record<SignalIcon, typeof Trash> = {
-  trash: Trash,
-  paper: Newspaper,
-  laundry: WashingMachine,
-  dishwasher: ForkKnife,
-  diaper: Baby,
-  glass: Wine,
-};
 
 export function HomeScreen() {
   return (
@@ -78,7 +70,6 @@ function Household() {
   const nameOf = useMemberName();
   const now = useNow();
   const { act } = useUI();
-  const [pulse, setPulse] = useState<string | null>(null);
   const today = toDateKey(now);
   const chores = choresDueWithin(state.chores, today, 7);
   const openTasks = state.tasks.filter((x) => !x.doneAt).sort((a, b) => (a.due ?? "9").localeCompare(b.due ?? "9"));
@@ -92,39 +83,7 @@ function Household() {
 
   return (
     <>
-      <SectionTitle aside={t("signalsHint")}>{t("signals")}</SectionTitle>
-      <div className="grid grid-cols-2 gap-2.5">
-        {state.signals.map((s, i) => {
-          const Icon = SIGNAL_ICONS[s.icon];
-          const open = !!s.openedAt;
-          return (
-            <button key={s.id} type="button" aria-pressed={open} style={{ ["--i" as string]: i }}
-              onClick={() => {
-                setPulse(s.id);
-                window.setTimeout(() => setPulse((p) => (p === s.id ? null : p)), 360);
-                act(open ? t("signalClosed", { label: s.label }) : t("signalSent", { name: otherName(state, nameOf) }),
-                  toggleSignal(s.id, state.me, new Date()));
-              }}
-              className={clsx(
-                "rise flex min-h-[116px] flex-col justify-between rounded-[22px] p-3.5 text-left transition-colors duration-300 active:scale-[0.97]",
-                open ? "bg-hero text-white" : "bg-surface",
-                pulse === s.id && "pulse-once",
-              )}>
-              <span className={clsx("grid h-10 w-10 place-items-center rounded-[14px] transition-colors duration-300", open ? "bg-white/25" : "bg-bg")}>
-                <Icon size={22} />
-              </span>
-              <span>
-                <span className="block font-semibold">{s.label}</span>
-                <span className={clsx("text-xs", open ? "font-semibold text-[var(--hero-sub)]" : "text-ink-3")}>
-                  {open
-                    ? t("signalOpen", { name: s.openedBy === state.me ? t("you") : nameOf(s.openedBy), minutes: minutesAgo(s.openedAt!, now) })
-                    : t("signalTap")}
-                </span>
-              </span>
-            </button>
-          );
-        })}
-      </div>
+      <Signals />
 
       <SectionTitle aside={t("choresHint")}>{t("chores")}</SectionTitle>
       <div className="rounded-[22px] bg-surface px-4 py-1">
@@ -175,6 +134,98 @@ function Household() {
           ))}
         </AnimatePresence>
       </div>
+    </>
+  );
+}
+
+function Signals() {
+  const t = useTranslations("home");
+  const ts = useTranslations("signals");
+  const { state } = useHousehold();
+  const nameOf = useMemberName();
+  const now = useNow();
+  const { act } = useUI();
+  const [pulse, setPulse] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [openId, setOpenId] = useState<string | "new" | null>(null);
+  // Separate from openId so the sheet keeps its content while it slides away.
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [formKey, setFormKey] = useState(0);
+
+  const count = state.signals.length;
+  const canAdd = canAddSignal(state.signals);
+  const isNew = openId === "new";
+  const signal = isNew ? null : (state.signals.find((x) => x.id === openId) ?? null);
+  if (editing && count === 0) setEditing(false);
+  if (sheetOpen && !isNew && signal === null) setSheetOpen(false);
+
+  const openSheet = (id: string) => {
+    setOpenId(id);
+    setFormKey((k) => k + 1);
+    setSheetOpen(true);
+  };
+
+  return (
+    <>
+      <SectionTitle
+        aside={count > 0 ? (
+          <button type="button" aria-pressed={editing} onClick={() => setEditing((e) => !e)}
+            className={clsx("press -my-3 -mr-2 inline-flex h-11 items-center gap-1.5 rounded-xl px-2 text-[13px] font-semibold",
+              editing ? "text-accent-strong" : "text-ink-2")}>
+            {editing ? ts("done") : (<><PencilSimple size={16} /> {ts("edit")}</>)}
+          </button>
+        ) : undefined}>
+        {t("signals")}
+      </SectionTitle>
+      <div className="grid grid-cols-2 gap-2.5">
+        {state.signals.map((s, i) => {
+          const open = !!s.openedAt;
+          if (editing) {
+            return (
+              <button key={s.id} type="button" aria-label={ts("editLabel", { label: s.label })} style={{ ["--i" as string]: i }}
+                onClick={() => openSheet(s.id)}
+                className="rise relative flex min-h-[116px] flex-col justify-between rounded-[22px] bg-surface p-3.5 text-left transition-colors duration-300 active:scale-[0.97]">
+                <SignalFace icon={s.icon} label={s.label} sub={ts("tapToEdit")} open={false} />
+                <span aria-hidden className="pop absolute right-2.5 top-2.5 grid h-7 w-7 place-items-center rounded-full bg-bg text-ink-2">
+                  <PencilSimple size={14} />
+                </span>
+              </button>
+            );
+          }
+          return (
+            <button key={s.id} type="button" aria-pressed={open} style={{ ["--i" as string]: i }}
+              onClick={() => {
+                setPulse(s.id);
+                window.setTimeout(() => setPulse((p) => (p === s.id ? null : p)), 360);
+                act(open ? t("signalClosed", { label: s.label }) : t("signalSent", { name: otherName(state, nameOf) }),
+                  toggleSignal(s.id, state.me, new Date()));
+              }}
+              className={clsx(
+                "rise flex min-h-[116px] flex-col justify-between rounded-[22px] p-3.5 text-left transition-colors duration-300 active:scale-[0.97]",
+                open ? "bg-hero text-white" : "bg-surface",
+                pulse === s.id && "pulse-once",
+              )}>
+              <SignalFace icon={s.icon} label={s.label} open={open}
+                sub={open
+                  ? t("signalOpen", { name: s.openedBy === state.me ? t("you") : nameOf(s.openedBy), minutes: minutesAgo(s.openedAt!, now) })
+                  : t("signalTap")} />
+            </button>
+          );
+        })}
+        {(editing || count === 0) && canAdd && (
+          <button type="button" onClick={() => openSheet("new")}
+            className={clsx(
+              "pop press flex min-h-[116px] flex-col items-center justify-center gap-2 rounded-[22px] border-[1.5px] border-dashed border-ink-3/50 p-3.5 text-center font-semibold text-ink-2",
+              count === 0 && "col-span-2",
+            )}>
+            <span className="grid h-10 w-10 place-items-center rounded-[14px] bg-surface"><Plus size={22} /></span>
+            {ts("add")}
+            {count === 0 && <span className="text-xs font-normal text-ink-3">{ts("emptyHint")}</span>}
+          </button>
+        )}
+      </div>
+      {editing && !canAdd && <p className="mt-2.5 text-center text-[13px] text-ink-3">{ts("max", { max: MAX_SIGNALS })}</p>}
+      <SignalSheet signal={signal} isNew={isNew} open={sheetOpen} formKey={formKey} onClose={() => setSheetOpen(false)} />
     </>
   );
 }
