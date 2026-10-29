@@ -91,8 +91,12 @@ function Money() {
             {t("remember")}
           </label>
         </>
-      ) : (
+      ) : state.transactions.length > 0 ? (
         <div className="pop mt-5 rounded-[22px] bg-tile-agenda p-4 text-sm">{t("allSorted")}</div>
+      ) : (
+        <div className="pop mt-5 rounded-[22px] bg-surface p-4 text-sm text-ink-2">
+          {t(state.bank.length > 0 ? "emptyLinked" : "emptyNoBank")}
+        </div>
       )}
 
       <SectionTitle aside={t("tapForDetails")}>{t("budgets")}</SectionTitle>

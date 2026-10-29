@@ -1,8 +1,9 @@
 import "server-only";
-import { desc, eq, isNull, lt } from "drizzle-orm";
+import { desc, eq, inArray, isNull, lt } from "drizzle-orm";
 import { getTranslations } from "next-intl/server";
 import { db } from "@/db";
 import * as t from "@/db/schema";
+import type { ImportResult } from "@/lib/bank-callback";
 import { categoryForMcc, consentDaysLeft, mapEbTransactions, missingStarterRules, normalizeIban } from "@/lib/bank-mapping";
 import { addDays, categorize } from "@/lib/logic";
 import { bankEnv } from "../env";
@@ -102,7 +103,7 @@ async function addStarterRules(ctx: HouseholdContext): Promise<void> {
     .onConflictDoNothing();
 }
 
-export type ImportResult = { status: "ok" | "expired" | "rate_limited" | "error"; imported: number };
+export type { ImportResult };
 
 /**
  * Imports booked transactions for every account of one connection. New rows are inserted,
@@ -195,13 +196,13 @@ async function markConnection(
     .where(scope(ctx).where(t.bankConnections, eq(t.bankConnections.id, connectionId)));
 }
 
-/** Imports every active connection of a household and warns once when a consent ends soon. */
+/** Imports every connection of a household that is active or failed last time, and warns once when a consent ends soon. */
 export async function importHousehold(ctx: HouseholdContext): Promise<ImportResult[]> {
   const s = scope(ctx);
   const connections = await db
     .select()
     .from(t.bankConnections)
-    .where(s.where(t.bankConnections, eq(t.bankConnections.status, "active")));
+    .where(s.where(t.bankConnections, inArray(t.bankConnections.status, ["active", "error"])));
   const results: ImportResult[] = [];
   for (const c of connections) results.push(await importConnection(ctx, c.id));
   await warnExpiring(ctx);
@@ -237,12 +238,12 @@ async function warnExpiring(ctx: HouseholdContext): Promise<void> {
   }
 }
 
-/** Unscoped by design: the cron job finds the households that have a bank link, then works scoped. */
+/** Unscoped by design: the cron job finds the households that have a bank link (active or failed last time), then works scoped. */
 export async function householdsWithBank(): Promise<string[]> {
   const rows = await db
     .selectDistinct({ householdId: t.bankConnections.householdId })
     .from(t.bankConnections)
-    .where(eq(t.bankConnections.status, "active"));
+    .where(inArray(t.bankConnections.status, ["active", "error"]));
   return rows.map((r) => r.householdId);
 }
 
@@ -256,14 +257,17 @@ export async function pruneAuthStates(ctx: HouseholdContext): Promise<void> {
     .where(scope(ctx).where(t.bankAuthStates, lt(t.bankAuthStates.createdAt, new Date(Date.now() - STATE_TTL_MS))));
 }
 
-/** Takes (and deletes) a pending authorisation of this household, if it is still fresh. */
-export async function takeAuthState(ctx: HouseholdContext, state: string): Promise<{ name: string; country: string } | null> {
-  const [row] = await db
-    .delete(t.bankAuthStates)
-    .where(scope(ctx).where(t.bankAuthStates, eq(t.bankAuthStates.state, state)))
-    .returning();
+/**
+ * Unscoped by design: the bank redirect may arrive without a session (iOS opens it in Safari,
+ * which does not share cookies with the PWA). The state is a server-made random uuid, single use
+ * (DELETE … RETURNING) and valid for 15 minutes; the household comes from this row, never from the client.
+ */
+export async function takeAuthStateUnscoped(
+  state: string,
+): Promise<{ householdId: string; name: string; country: string } | null> {
+  const [row] = await db.delete(t.bankAuthStates).where(eq(t.bankAuthStates.state, state)).returning();
   if (!row || Date.now() - row.createdAt.getTime() > STATE_TTL_MS) return null;
-  return { name: row.aspspName, country: row.aspspCountry };
+  return { householdId: row.householdId, name: row.aspspName, country: row.aspspCountry };
 }
 
 /** Records a pending authorisation for this household; returns the state to send along. */
@@ -276,11 +280,12 @@ export async function createAuthState(ctx: HouseholdContext, aspsp: { name: stri
   return row.state;
 }
 
+/** Connections worth importing: active, or failed last time (retried, since the import is idempotent). */
 export async function activeConnections(ctx: HouseholdContext) {
   return db
     .select({ id: t.bankConnections.id, lastSyncedAt: t.bankConnections.lastSyncedAt })
     .from(t.bankConnections)
-    .where(scope(ctx).where(t.bankConnections, eq(t.bankConnections.status, "active")));
+    .where(scope(ctx).where(t.bankConnections, inArray(t.bankConnections.status, ["active", "error"])));
 }
 
 /** Ends the consent at the bank and removes the link; imported transactions stay. False when not found. */

@@ -31,7 +31,7 @@ Geïnspireerd op een bento-layout met grote illustraties:
 - **Invoer via bottom sheets** met slimme standaarden (vandaag, jij, laatst gebruikte categorie); sluiten door omlaag te vegen
 - **Signaalknoppen**: één tik = signaal + push naar de ander; de knop blijft "open" tot iemand op Gedaan tikt
 - **Lege staten** hebben één zin en één actie ("Nog geen klussen. Voeg de eerste toe.")
-- **Laden**: skeletons in de vorm van de inhoud, geen spinners
+- **Laden**: skeletons in de vorm van de inhoud, geen spinners (uitzondering: pull-to-refresh-indicator)
 - Touch targets minimaal 44 × 44 px
 
 ## Visuele stijl
@@ -70,7 +70,7 @@ Geïnspireerd op een bento-layout met grote illustraties:
 Regels:
 
 - Alleen `transform` en `opacity`; ease-out (`--ease-out`); nooit langer dan 420 ms
-- De tegel-stagger alleen bij de eerste keer openen, niet bij verversen; geen eindeloze loops
+- De tegel-stagger alleen bij de eerste keer openen, niet bij verversen; geen eindeloze loops (uitzondering: pull-to-refresh-indicator)
 - `prefers-reduced-motion`: alles uit (staat al in `globals.css`)
 
 ## PWA

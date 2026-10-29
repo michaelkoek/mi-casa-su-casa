@@ -205,6 +205,8 @@
     "categorized": "{name} → {category}",
     "remember": "Onthoud dit voor volgende keer",
     "allSorted": "Alles ingedeeld. Nieuwe transacties komen elke ochtend binnen.",
+    "emptyNoBank": "Nog geen transacties. Koppel hierboven je bank of voeg een contante uitgave toe.",
+    "emptyLinked": "Nog geen transacties opgehaald. Ze komen elke ochtend binnen, of trek omlaag om nu te verversen.",
     "budgets": "Budget per categorie",
     "tapForDetails": "tik voor details en budget",
     "spentOnly": "uitgegeven deze maand",
@@ -573,6 +575,21 @@
     "body": "De app kon je gegevens niet laden. Probeer het zo opnieuw.",
     "retry": "Opnieuw proberen"
   },
+  "bankDone": {
+    "linkedTitle": "Bank gekoppeld",
+    "linkedBody": "Ga terug naar de app. Je transacties verschijnen daar vanzelf.",
+    "cancelledTitle": "Koppelen afgebroken",
+    "cancelledBody": "Ga terug naar de app en probeer het opnieuw als je wilt.",
+    "failedTitle": "Koppelen mislukt",
+    "failedBody": "Ga terug naar de app en koppel je bank opnieuw."
+  },
+  "pullRefresh": {
+    "pull": "Trek om te verversen",
+    "release": "Laat los om te verversen",
+    "busy": "Bezig met verversen",
+    "done": "Bijgewerkt",
+    "failed": "Verversen lukte niet. Probeer het zo opnieuw."
+  },
   "bank": {
     "title": "Bankrekeningen",
     "link": "Koppel je bank",
@@ -596,6 +613,8 @@
     "refreshed": "{count, plural, =0 {Geen nieuwe transacties} one {# nieuwe transactie} other {# nieuwe transacties}}",
     "refreshExpired": "Je toestemming bij de bank is verlopen. Koppel opnieuw.",
     "linked": "Bank gekoppeld. Je transacties staan klaar.",
+    "linkedEmpty": "Bank gekoppeld. De bank gaf nog geen transacties terug.",
+    "linkedLater": "Bank gekoppeld. Ophalen lukte nog niet, we proberen het vanzelf opnieuw.",
     "cancelled": "Koppelen afgebroken.",
     "linkFailed": "Koppelen mislukt. Probeer het opnieuw.",
     "consent": "Je toestemming bij {bank} verloopt over {days, plural, one {# dag} other {# dagen}}.",

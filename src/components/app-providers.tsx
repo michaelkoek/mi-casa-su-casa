@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, type ReactNode } from "react";
 import { HouseholdProvider } from "@/lib/store";
 import type { HouseholdState } from "@/lib/types";
+import { PullToRefresh } from "./pull-to-refresh";
 import { QuickAdd } from "./quick-add";
 import { SyncStatus } from "./sync-status";
 import { TabBar } from "./tab-bar";
@@ -44,6 +45,7 @@ export function AppProviders({
         <SyncStatus />
         <TabBar />
         <QuickAdd />
+        <PullToRefresh />
         <Suspense fallback={null}>
           <ShortcutHandler />
         </Suspense>

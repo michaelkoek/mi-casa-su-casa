@@ -9,6 +9,6 @@ export function proxy(req: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!login|api/auth|api/cron|_next/static|_next/image|serwist|~offline|icons|brand|manifest.webmanifest|favicon.ico|icon.png|apple-icon.png).*)",
+    "/((?!login|api/auth|api/cron|api/bank/callback|bank-klaar|_next/static|_next/image|serwist|~offline|icons|brand|manifest.webmanifest|favicon.ico|icon.png|apple-icon.png).*)",
   ],
 };

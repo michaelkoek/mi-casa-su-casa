@@ -5,6 +5,7 @@ import clsx from "clsx";
 import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 import { listBanks, refreshBank, startBankLink, unlinkBank, type BankOption } from "@/app/actions/bank";
+import { toastKey } from "@/lib/bank-callback";
 import { consentDaysLeft } from "@/lib/bank-mapping";
 import { formatTime, toDateKey } from "@/lib/logic";
 import { useHousehold, useNow } from "@/lib/store";
@@ -26,13 +27,13 @@ export function BankStrip() {
   const [refreshing, setRefreshing] = useState(false);
   const banks = state.bank;
 
-  // Result of the bank redirect (/geld?bank=linked|cancelled|failed): one toast, then a clean URL.
+  // Result of the bank redirect (/geld?bank=<outcome>): one toast, then a clean URL.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const result = params.get("bank");
-    if (!result) return;
-    const key = result === "linked" ? "linked" : result === "cancelled" ? "cancelled" : "linkFailed";
-    toast(t(key));
+    if (result === null) return;
+    const key = toastKey(result);
+    if (key) toast(t(key));
     params.delete("bank");
     const qs = params.toString();
     window.history.replaceState(null, "", window.location.pathname + (qs ? `?${qs}` : ""));
