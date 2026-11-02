@@ -32,6 +32,7 @@
   --tile-jobs: #ebe6f6;
   --tile-food: #fbe7d8;
   --tile-agenda: #e0f1e7;
+  --tile-lights: #f9f0cf;
 
   /* Status (alleen voor betekenis) */
   --bad: #c13d2c;
@@ -72,6 +73,7 @@
     --tile-jobs: #272338;
     --tile-food: #35261c;
     --tile-agenda: #1c2c25;
+    --tile-lights: #322b17;
     --bad: #f08a76;
     --shadow-card: 0 1px 0 rgb(0 0 0 / 0.3), 0 14px 30px -20px rgb(0 0 0 / 0.7);
     color-scheme: dark;
@@ -95,6 +97,7 @@
   --color-tile-jobs: var(--tile-jobs);
   --color-tile-food: var(--tile-food);
   --color-tile-agenda: var(--tile-agenda);
+  --color-tile-lights: var(--tile-lights);
   --color-bad: var(--bad);
   --radius-sm: var(--radius-sm);
   --radius-md: var(--radius-md);

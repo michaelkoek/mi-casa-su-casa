@@ -21,7 +21,7 @@ Geïnspireerd op een bento-layout met grote illustraties:
 
 1. Kop: avatar, "Hoi Michael", datum, belletje met badge
 2. **Hero-kaart** (oranje, 26 px radius) met het belangrijkste van nu: een open signaal ("Prullenbak vol" + knop "Ik doe het"), anders het avondeten. Rechts een grote platte illustratie die over de rand loopt
-3. **Bento-grid**, twee kolommen met verschillende hoogtes (224 / 176 / 132 px): Huishouden (navy), Geld (blauw), Kind (roze), Klusjes (lila, met oranje badge "2 HOOG"), Agenda (mint), Eten (perzik)
+3. **Bento-grid**, twee kolommen met verschillende hoogtes (224 / 176 / 132 px): Huishouden (navy), Geld (blauw), Kind (roze), Klusjes (lila, met oranje badge "2 HOOG"), Agenda (mint), Eten (perzik), en daaronder over de volle breedte Lampen (geel)
 4. Elke tegel: titel + één regel status linksboven, illustratie rechtsonder over de rand; tik = naar die module
 
 ## Interactie
@@ -45,7 +45,7 @@ Geïnspireerd op een bento-layout met grote illustraties:
 | `--accent-strong` | #c4521e | Knoppen met witte tekst (contrast ≥ 4.5:1) |
 | `--hero` | #e26a2f | Hero-kaart; titel wit 22/700, subtekst donkerbruin |
 | `--navy` | #1f2130 | Belangrijkste tegel (Huishouden), vandaag in het opvangrooster |
-| `--tile-*` | blauw, roze, lila, perzik, mint | Eén zachte kleur per module |
+| `--tile-*` | blauw, roze, lila, perzik, mint, geel | Eén zachte kleur per module |
 
 - Eén accentkleur (oranje); de tegelkleuren zijn pastel en dragen nooit betekenis
 - Illustraties: platte SVG, opgebouwd uit oranje, perzik, navy en de tegelkleuren; groot (90–150 px) en deels buiten de tegel

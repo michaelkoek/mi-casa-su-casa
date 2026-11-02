@@ -95,9 +95,9 @@ export const COLLECTIONS: { [C in CollectionName]: CollectionDef } = {
   tasks: { key: "id", ordered: true, ops: ALL, timestamps: ["doneAt"] },
   projects: { key: "id", ordered: true, ops: ALL, timestamps: [] },
   materials: { key: "id", ordered: true, ops: ALL, timestamps: [] },
-  categories: { key: "id", ordered: true, ops: ["insert", "update"], timestamps: [] },
+  categories: { key: "id", ordered: true, ops: ALL, timestamps: [] },
   // Sorted by date, not position: imports add rows on the server, and positions would shift on every delete.
-  transactions: { key: "id", ordered: false, ops: ALL, updatable: ["categoryId", "counterparty", "transfer"], timestamps: [] },
+  transactions: { key: "id", ordered: false, ops: ALL, updatable: ["categoryId", "counterparty", "transfer", "amountCents", "date", "description"], timestamps: [] },
   rules: { key: "id", ordered: true, ops: ALL, timestamps: [] },
   care: { key: "weekday", ordered: false, ops: ["update"], timestamps: [] },
   medicines: { key: "id", ordered: true, ops: ALL, timestamps: [] },
@@ -115,6 +115,9 @@ export const COLLECTIONS: { [C in CollectionName]: CollectionDef } = {
   shopping: { key: "id", ordered: true, ops: ALL, timestamps: [] },
   events: { key: "id", ordered: true, ops: [], timestamps: ["start"] },
 };
+
+/** Fields the bank owns: never changed by a client on a row with source "bank". */
+export const BANK_LOCKED_FIELDS = ["amountCents", "date", "description"] as const;
 
 export const COLLECTION_NAMES = Object.keys(COLLECTIONS) as CollectionName[];
 

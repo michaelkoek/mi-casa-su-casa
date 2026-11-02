@@ -36,6 +36,13 @@
       "when": 1793217764416,
       "tag": "0004_categories_budget_nullable",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793628810013,
+      "tag": "0005_young_king_cobra",
+      "breakpoints": true
     }
   ]
 }

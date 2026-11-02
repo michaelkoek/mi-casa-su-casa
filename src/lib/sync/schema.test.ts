@@ -2,10 +2,10 @@ import { describe, expect, it } from "vitest";
 import * as actions from "../actions";
 import { MAX_CENTS } from "../logic";
 import { createSeed, createStarter } from "../seed";
-import { COLLECTION_NAMES, type Change } from "./collections";
+import { BANK_LOCKED_FIELDS, COLLECTION_NAMES, type Change } from "./collections";
 import { diffState } from "./diff";
 import { toRows } from "./rows";
-import { memberRefIssues, parseChangeset, rowSchemas } from "./schema";
+import { bankRowIssues, memberRefIssues, parseChangeset, rowSchemas, transactionKeys } from "./schema";
 
 const now = new Date("2026-10-24T14:00:00");
 const seed = createSeed(now);
@@ -81,6 +81,13 @@ describe("parseChangeset", () => {
     addMedicine: actions.addMedicine({ name: "Vitamine D", intervalHours: 24 }),
     updateMedicine: actions.updateMedicine("para", { name: "Dafalgan", intervalHours: 4 }),
     removeMedicine: actions.removeMedicine("para"),
+    addCategory: actions.addCategory("Abonnementen", 5000, "k9"),
+    updateTransaction: actions.updateTransaction("x12", { counterparty: "Gamma", categoryId: "home" }, true),
+    removeTransaction: actions.removeTransaction("x01"),
+    updateCategory: actions.updateCategory("food", { name: "Eten", budgetCents: null }),
+    removeCategory: actions.removeCategory("food"),
+    updateRule: actions.updateRule("r1", { contains: "ah ", categoryId: "out" }),
+    removeRule: actions.removeRule("r2"),
     clearBudget: actions.setBudget("food", null),
     setBudget: actions.setBudget("food", 30000),
   };
@@ -94,6 +101,13 @@ describe("parseChangeset", () => {
       }
     });
   }
+
+  it("accepts widened transaction patches and category deletes", () => {
+    expect(parseChangeset(cs(update({ amountCents: -500, date: "2026-10-01" }, "transactions", "x1"))).ok).toBe(true);
+    expect(parseChangeset(cs({ op: "delete", c: "categories", key: "food" })).ok).toBe(true);
+    expect(parseChangeset(cs(update({ source: "manual" }, "transactions", "x1"))).ok).toBe(false);
+    expect(parseChangeset(cs(update({ accountId: null }, "transactions", "x1"))).ok).toBe(false);
+  });
 
   it("signal inserts check the icon", () => {
     const row = { id: "sg9", label: "Koffie op", icon: "coffee", openedBy: null, openedAt: null, position: 6 };
@@ -201,5 +215,36 @@ describe("signal icon enum", () => {
       expect(parseChangeset(cs({ op: "insert", c: "signals", row: row(icon) })).ok).toBe(true);
     }
     expect(parseChangeset(cs({ op: "insert", c: "signals", row: row("") })).ok).toBe(false);
+  });
+});
+
+describe("bankRowIssues", () => {
+  const bank = new Set(["x01"]);
+  const upd = (key: string, patch: object) => ({ op: "update", c: "transactions", key, patch }) as unknown as Change;
+  const del = (key: string) => ({ op: "delete", c: "transactions", key }) as unknown as Change;
+  const ins = (id: string, source: string) =>
+    ({ op: "insert", c: "transactions", row: { ...seed.transactions[0], id, source } }) as unknown as Change;
+
+  it("flags a locked field on a bank row", () => {
+    for (const f of BANK_LOCKED_FIELDS) {
+      expect(bankRowIssues([upd("x01", { [f]: 1 })], bank)).toEqual(["transactions.lockedField"]);
+    }
+  });
+  it("allows category, name and transfer patches on a bank row", () => {
+    expect(bankRowIssues([upd("x01", { categoryId: "home", counterparty: "A", transfer: true })], bank)).toEqual([]);
+  });
+  it("flags deleting a bank row", () => {
+    expect(bankRowIssues([del("x01")], bank)).toEqual(["transactions.deleteBank"]);
+  });
+  it("flags inserting a bank row or overwriting one", () => {
+    expect(bankRowIssues([ins("x99", "bank")], bank)).toEqual(["transactions.insertBank"]);
+    expect(bankRowIssues([ins("x01", "manual")], bank)).toEqual(["transactions.overwriteBank"]);
+  });
+  it("lets manual ids and other collections pass", () => {
+    expect(bankRowIssues([upd("xm1", { amountCents: -5 }), del("xm1"), ins("xm1", "manual")], bank)).toEqual([]);
+    expect(bankRowIssues([{ op: "delete", c: "tasks", key: "x01" } as Change], bank)).toEqual([]);
+  });
+  it("transactionKeys dedupes insert, update and delete keys", () => {
+    expect(transactionKeys([ins("a", "manual"), upd("a", { transfer: true }), del("b"), { op: "delete", c: "tasks", key: "z" } as Change]).sort()).toEqual(["a", "b"]);
   });
 });

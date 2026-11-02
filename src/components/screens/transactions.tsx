@@ -1,19 +1,16 @@
 "use client";
 
-import { ArrowsLeftRight, CaretLeft, MagnifyingGlass } from "@phosphor-icons/react";
+import { CaretLeft, MagnifyingGlass } from "@phosphor-icons/react";
 import clsx from "clsx";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { categorizeTransaction, setTransfer } from "@/lib/actions";
-import { shopName } from "@/lib/insights";
 import { addDays, formatEuro, toDateKey } from "@/lib/logic";
 import { useHousehold, useNow } from "@/lib/store";
 import type { HouseholdState, Transaction } from "@/lib/types";
-import { Checkbox } from "../form";
+import { TransactionForm } from "../money-forms";
 import { PageHeader, Screen } from "../screen";
 import { Sheet } from "../sheet";
-import { useUI } from "../ui-provider";
 
 /** Rows rendered at first; more on demand, so a year of bank data stays fast on a phone. */
 const PAGE = 120;
@@ -57,6 +54,7 @@ function Transactions() {
   const [openId, setOpenId] = useState<string | null>(null);
   // Separate from openId so the sheet keeps its content while it slides away.
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [formKey, setFormKey] = useState(0);
 
   const labels = useMemo(() => accountLabels(state), [state]);
   const categoryName = useMemo(() => new Map(state.categories.map((c) => [c.id, c.name])), [state.categories]);
@@ -69,6 +67,10 @@ function Transactions() {
   const days = groupByDay(shown);
   const today = toDateKey(now);
   const open = state.transactions.find((x) => x.id === openId) ?? null;
+  // Deleted (by us or the other member): close for good, so an undo doesn't reopen the sheet.
+  if (sheetOpen && openId && open === null) setSheetOpen(false);
+  // The filtered category was deleted: show everything again.
+  if (filter.kind === "category" && !state.categories.some((c) => c.id === filter.id)) setFilter({ kind: "all" });
 
   const dayLabel = (date: string) =>
     date === today
@@ -124,7 +126,7 @@ function Transactions() {
           <ul className="rounded-[22px] bg-surface px-4">
             {txs.map((tx) => (
               <li key={tx.id} className="border-b border-line last:border-b-0">
-                <button type="button" onClick={() => { setOpenId(tx.id); setSheetOpen(true); }} className="flex min-h-14 w-full items-center gap-3 py-3 text-left">
+                <button type="button" onClick={() => { setOpenId(tx.id); setFormKey((k) => k + 1); setSheetOpen(true); }} className="flex min-h-14 w-full items-center gap-3 py-3 text-left">
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-medium">{tx.counterparty}</span>
                     <span className="mt-0.5 block truncate text-[13px] text-ink-3">
@@ -151,7 +153,7 @@ function Transactions() {
         </button>
       )}
 
-      <TransactionSheet tx={open} open={sheetOpen} account={open?.accountId ? labels.get(open.accountId) : undefined}
+      <TransactionSheet tx={open} open={sheetOpen} formKey={formKey} account={open?.accountId ? labels.get(open.accountId) : undefined}
         onClose={() => setSheetOpen(false)} />
     </>
   );
@@ -163,76 +165,11 @@ function groupByDay(txs: Transaction[]): [string, Transaction[]][] {
   return [...days];
 }
 
-/** Detail of one transaction: pick its category (optionally as a rule) or mark it as an own transfer. */
-function TransactionSheet({ tx, open, account, onClose }: { tx: Transaction | null; open: boolean; account?: string; onClose: () => void }) {
-  const t = useTranslations("transactions");
-  const { state } = useHousehold();
-  const { act } = useUI();
-  const [remember, setRemember] = useState(true);
-
+/** Detail of one transaction: edit it (manual rows fully, bank rows name, category and transfer only). */
+function TransactionSheet({ tx, open, formKey, account, onClose }: { tx: Transaction | null; open: boolean; formKey: number; account?: string; onClose: () => void }) {
   return (
     <Sheet open={open && tx !== null} onClose={onClose} title={tx?.counterparty ?? ""}>
-      {tx && (
-        <>
-          <p className="text-[13px] text-ink-3 first-letter:uppercase">
-            {new Date(`${tx.date}T12:00:00`).toLocaleDateString("nl-NL", { weekday: "long", day: "numeric", month: "long" })}
-          </p>
-          <p className={clsx("num mt-1 text-3xl font-bold tracking-tight", tx.transfer && "text-ink-3")}>
-            {tx.amountCents > 0 ? `+ ${formatEuro(tx.amountCents)}` : formatEuro(tx.amountCents)}
-          </p>
-
-          {(tx.description || account) && (
-            <dl className="mt-4 rounded-[22px] bg-surface px-4 py-1 text-sm">
-              {tx.description && (
-                <div className="border-b border-line py-3 last:border-b-0">
-                  <dt className="text-[13px] text-ink-3">{t("details")}</dt>
-                  <dd className="mt-0.5 break-words">{tx.description}</dd>
-                </div>
-              )}
-              {account && (
-                <div className="border-b border-line py-3 last:border-b-0">
-                  <dt className="text-[13px] text-ink-3">{t("account")}</dt>
-                  <dd className="mt-0.5">{account}</dd>
-                </div>
-              )}
-            </dl>
-          )}
-
-          {!tx.transfer && (
-            <>
-              <p className="mb-2 mt-5 text-[13px] font-semibold text-ink-3">{t("category")}</p>
-              <div className="flex flex-wrap gap-2">
-                {state.categories.map((c) => (
-                  <button key={c.id} type="button" aria-pressed={tx.categoryId === c.id}
-                    onClick={() => {
-                      act(t("categorized", { name: tx.counterparty, category: c.name }), categorizeTransaction(tx.id, c.id, remember));
-                      onClose();
-                    }}
-                    className={clsx("press h-10 rounded-full px-4 text-sm font-medium",
-                      tx.categoryId === c.id ? "bg-ink text-bg" : "bg-surface")}>
-                    {c.name}
-                  </button>
-                ))}
-              </div>
-              <label className="mt-3 flex min-h-11 items-center gap-3 text-sm text-ink-2">
-                <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} className="h-5 w-5 accent-[var(--accent-strong)]" />
-                {t("remember", { name: shopName(tx.counterparty) })}
-              </label>
-            </>
-          )}
-
-          <button type="button" role="switch" aria-checked={tx.transfer}
-            onClick={() => act(t(tx.transfer ? "transferOff" : "transferOn", { name: tx.counterparty }), setTransfer(tx.id, !tx.transfer))}
-            className="press mt-4 flex w-full items-center gap-3 rounded-[22px] bg-surface p-4 text-left">
-            <ArrowsLeftRight size={20} className="flex-none" />
-            <span className="flex-1">
-              <span className="block font-medium">{t("markTransfer")}</span>
-              <span className="block text-[13px] text-ink-3">{t("markTransferSub")}</span>
-            </span>
-            <Checkbox done={tx.transfer} />
-          </button>
-        </>
-      )}
+      {tx && <TransactionForm key={formKey} item={tx} account={account} onDone={onClose} />}
     </Sheet>
   );
 }

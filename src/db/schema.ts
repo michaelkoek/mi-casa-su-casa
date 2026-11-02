@@ -491,3 +491,48 @@ export const bankAuthStates = pgTable("bank_auth_states", {
   aspspCountry: text("aspsp_country").notNull(),
   createdAt: ts("created_at").notNull().defaultNow(),
 });
+
+/*
+ * Lights live at the vendor; only the link is stored here. Credentials are encrypted at rest
+ * (LIGHTS_TOKEN_KEY) and never leave the server.
+ */
+export const lightConnections = pgTable(
+  "light_connections",
+  {
+    householdId: hid(),
+    provider: text("provider").$type<"shelly" | "hue">().notNull(),
+    credentialsEnc: text("credentials_enc").notNull(),
+    status: text("status").$type<"active" | "expired">().notNull().default("active"),
+    /** Hue only: when the access token ends; the cron refreshes ahead of it. */
+    accessExpiresAt: ts("access_expires_at"),
+    /** Hue only: refreshing rotates the tokens, so one caller at a time holds this lease. */
+    refreshLeaseUntil: ts("refresh_lease_until"),
+    /** Set once the "connect again" push went out, so it is sent only once. */
+    expiryWarnedAt: ts("expiry_warned_at"),
+    ...stamps,
+  },
+  (t) => [primaryKey({ columns: [t.householdId, t.provider] })],
+);
+
+/** Shelly's API has no device list, so the household adds its devices by id. */
+export const lightDevices = pgTable(
+  "light_devices",
+  {
+    householdId: hid(),
+    id: text("id").notNull(),
+    deviceId: text("device_id").notNull(),
+    channel: integer("channel").notNull().default(0),
+    kind: text("kind").$type<"light" | "switch">().notNull(),
+    name: text("name").notNull(),
+    room: text("room"),
+    ...stamps,
+  },
+  (t) => [primaryKey({ columns: [t.householdId, t.id] })],
+);
+
+/** Pending Hue authorisations: the callback only accepts a state it created. */
+export const lightAuthStates = pgTable("light_auth_states", {
+  state: uuid("state").primaryKey().defaultRandom(),
+  householdId: hid(),
+  createdAt: ts("created_at").notNull().defaultNow(),
+});

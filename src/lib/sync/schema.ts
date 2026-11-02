@@ -1,13 +1,15 @@
 import { z } from "zod";
 import { MAX_CENTS } from "../logic";
 import { SIGNAL_ICONS } from "../types";
-import { COLLECTIONS, type Change, type Changeset, type CollectionName, type RowMap } from "./collections";
+import { BANK_LOCKED_FIELDS, COLLECTIONS, type Change, type Changeset, type CollectionName, type RowMap } from "./collections";
 
 /* Zod schemas for rows and changesets. Shared by the server action and the tests. Pure. */
 
 const id = z.string().regex(/^[A-Za-z0-9_-]{1,64}$/);
 const text = z.string().trim().min(1).max(200);
 const optText = z.string().max(200);
+/** Like `text` but keeps surrounding spaces (rule patterns such as "plus " are deliberate); blank is still rejected. */
+const rawText = z.string().min(1).max(200).refine((v) => v.trim().length > 0);
 const date = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/)
@@ -44,7 +46,7 @@ export const rowSchemas: { [C in CollectionName]: z.ZodType<RowMap[C]> } = {
     categoryId: z.union([id, z.null()]), source: z.enum(["bank", "manual"]),
     accountId: z.union([id, z.null()]), description: z.union([optText, z.null()]), transfer: z.boolean(),
   }),
-  rules: z.strictObject({ id, contains: text, categoryId: id, position }),
+  rules: z.strictObject({ id, contains: rawText, categoryId: id, position }),
   care: z.strictObject({ weekday: z.literal([1, 2, 3, 4, 5]), atHome: z.boolean(), bring: slot, pick: slot }),
   medicines: z.strictObject({ id, name: text, intervalHours: z.number().int().min(1).max(72), position }),
   doses: z.strictObject({ id, medicineId: id, amount: optText, at: iso, by: id, position }),
@@ -133,6 +135,37 @@ export function memberRefIssues(changes: Change[], memberIds: Set<string>): stri
     if (ch.c === "care") {
       if ("bring" in data && !slotOk(data.bring)) issues.push("care.bring");
       if ("pick" in data && !slotOk(data.pick)) issues.push("care.pick");
+    }
+  }
+  return issues;
+}
+
+/** Ids of transaction rows a changeset touches: insert row ids, update keys, delete keys (deduped). */
+export function transactionKeys(changes: Change[]): string[] {
+  const keys = new Set<string>();
+  for (const ch of changes) {
+    if (ch.c !== "transactions") continue;
+    keys.add(ch.op === "insert" ? (ch.row as { id: string }).id : ch.key);
+  }
+  return [...keys];
+}
+
+/**
+ * Changes that would alter a bank-imported row. `bankIds` = ids of stored rows (this household) with source "bank".
+ * Returns one issue string per problem, like memberRefIssues.
+ */
+export function bankRowIssues(changes: Change[], bankIds: Set<string>): string[] {
+  const issues: string[] = [];
+  for (const ch of changes) {
+    if (ch.c !== "transactions") continue;
+    if (ch.op === "insert") {
+      const row = ch.row as { id: string; source: string };
+      if (row.source === "bank") issues.push("transactions.insertBank");
+      if (bankIds.has(row.id)) issues.push("transactions.overwriteBank");
+    } else if (ch.op === "update") {
+      if (bankIds.has(ch.key) && BANK_LOCKED_FIELDS.some((f) => f in ch.patch)) issues.push("transactions.lockedField");
+    } else if (bankIds.has(ch.key)) {
+      issues.push("transactions.deleteBank");
     }
   }
   return issues;

@@ -8,7 +8,7 @@ import { createCipheriv, createDecipheriv, createHash, createSign, randomBytes }
 
 function keyBytes(base64Key: string): Buffer {
   const key = Buffer.from(base64Key, "base64");
-  if (key.length !== 32) throw new Error("BANK_TOKEN_KEY must be 32 bytes, base64");
+  if (key.length !== 32) throw new Error("Encryption key must be 32 bytes, base64");
   return key;
 }
 

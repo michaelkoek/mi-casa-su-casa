@@ -75,8 +75,9 @@ function ExpenseForm() {
     e.preventDefault();
     const cents = parseEuroToCents(amount);
     if (!cents) return setError(t("amountError"));
+    const categoryId = state.categories.some((c) => c.id === category) ? category : null;
     closeSheet();
-    act(t("saved"), addExpense(cents, what.trim() || t("defaultName"), category, new Date()));
+    act(t("saved"), addExpense(cents, what.trim() || t("defaultName"), categoryId, new Date()));
   };
 
   return (
@@ -84,8 +85,10 @@ function ExpenseForm() {
       <Field label={t("amount")} inputMode="decimal" placeholder="12,50" value={amount} autoFocus error={error}
         onChange={(e) => { setAmount(e.target.value); setError(null); }} />
       <Field label={t("what")} placeholder={t("whatPlaceholder")} value={what} onChange={(e) => setWhat(e.target.value)} />
-      <ChoiceGroup label={t("category")} value={category} onChange={setCategory}
-        options={state.categories.map((c) => ({ value: c.id, label: c.name }))} />
+      {state.categories.length > 0 && (
+        <ChoiceGroup label={t("category")} value={category} onChange={setCategory}
+          options={state.categories.map((c) => ({ value: c.id, label: c.name }))} />
+      )}
       <PrimaryButton type="submit">{t("submit")}</PrimaryButton>
     </form>
   );

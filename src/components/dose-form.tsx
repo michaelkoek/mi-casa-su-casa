@@ -27,13 +27,15 @@ export function DoseForm({ item, onDone }: { item?: Dose | null; onDone: () => v
   const { state } = useHousehold();
   const { act } = useUI();
   const now = useNow();
-  const [medicineId, setMedicineId] = useState(item?.medicineId ?? state.medicines[0]?.id ?? "");
+  // Patch only what changed since the form opened (snapshot), so the other member's concurrent edits to other fields survive.
+  const [original] = useState(item ?? null);
+  const [medicineId, setMedicineId] = useState(original?.medicineId ?? state.medicines[0]?.id ?? "");
   const [amount, setAmount] = useState(
-    () => item?.amount ?? lastDoseAmount(state.doses, state.medicines[0]?.id ?? ""),
+    () => original?.amount ?? lastDoseAmount(state.doses, state.medicines[0]?.id ?? ""),
   );
   const [edited, setEdited] = useState<{ date: string; time: string } | null>(null);
   // A new dose whose date/time was not touched follows the live clock, so the check and the stored moment are "now".
-  const parts = edited ?? toLocalDateTimeParts(item?.at ?? now.toISOString());
+  const parts = edited ?? toLocalDateTimeParts(original?.at ?? now.toISOString());
   const [lateEarly, setLateEarly] = useState<Date | null>(null);
   const [confirmEarly, setConfirmEarly] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -57,9 +59,9 @@ export function DoseForm({ item, onDone }: { item?: Dose | null; onDone: () => v
   const submit = (e: FormEvent) => {
     e.preventDefault();
     const submitNow = new Date();
-    const original = item ? toLocalDateTimeParts(item.at) : null;
-    const changed = !!edited && (!original || edited.date !== original.date || edited.time !== original.time);
-    const chosen = changed && edited ? fromLocalDateTimeParts(edited.date, edited.time) : item ? item.at : submitNow.toISOString();
+    const origParts = original ? toLocalDateTimeParts(original.at) : null;
+    const changed = !!edited && (!origParts || edited.date !== origParts.date || edited.time !== origParts.time);
+    const chosen = changed && edited ? fromLocalDateTimeParts(edited.date, edited.time) : original ? original.at : submitNow.toISOString();
     if (!chosen) return setError(t("dateError"));
     if (new Date(chosen).getTime() > submitNow.getTime() + MINUTE) return setError(t("futureError"));
     const found = doseTooEarly(state.doses, medicine, new Date(chosen), item?.id);
@@ -68,9 +70,12 @@ export function DoseForm({ item, onDone }: { item?: Dose | null; onDone: () => v
       return setConfirmEarly(true);
     }
     onDone();
-    if (item) {
-      const patch = { medicineId: medicine.id, amount, ...(changed ? { at: chosen } : {}) };
-      act(t("updated", { name: medicine.name }), updateDose(item.id, patch));
+    if (original) {
+      const patch: { medicineId?: string; amount?: string; at?: string } = {};
+      if (medicine.id !== original.medicineId) patch.medicineId = medicine.id;
+      if (amount.trim() !== original.amount) patch.amount = amount.trim();
+      if (changed) patch.at = chosen;
+      if (Object.keys(patch).length > 0) act(t("updated", { name: medicine.name }), updateDose(original.id, patch));
     } else act(t("saved", { name: medicine.name }), addDose(medicine.id, amount.trim(), state.me, new Date(chosen)));
   };
 
@@ -114,8 +119,9 @@ export function MedicineForm({ item, onDone }: { item: Medicine | null; onDone: 
   const t = useTranslations("child.medicineForm");
   const { state } = useHousehold();
   const { act } = useUI();
-  const [name, setName] = useState(item?.name ?? "");
-  const [hours, setHours] = useState(String(item?.intervalHours ?? 6));
+  const [original] = useState(item);
+  const [name, setName] = useState(original?.name ?? "");
+  const [hours, setHours] = useState(String(original?.intervalHours ?? 6));
   const [nameError, setNameError] = useState<string | null>(null);
   const [hoursError, setHoursError] = useState<string | null>(null);
 
@@ -126,9 +132,12 @@ export function MedicineForm({ item, onDone }: { item: Medicine | null; onDone: 
     const intervalHours = parseIntervalHours(hours);
     if (intervalHours === null) return setHoursError(t("intervalError"));
     onDone();
-    const input = { name, intervalHours };
-    if (item) act(t("updated", { name: name.trim() }), updateMedicine(item.id, input));
-    else act(t("added", { name: name.trim() }), addMedicine(input));
+    if (original) {
+      const patch: { name?: string; intervalHours?: number } = {};
+      if (name.trim() !== original.name) patch.name = name.trim();
+      if (intervalHours !== original.intervalHours) patch.intervalHours = intervalHours;
+      if (Object.keys(patch).length > 0) act(t("updated", { name: name.trim() }), updateMedicine(original.id, patch));
+    } else act(t("added", { name: name.trim() }), addMedicine({ name, intervalHours }));
   };
 
   return (

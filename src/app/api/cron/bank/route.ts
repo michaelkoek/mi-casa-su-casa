@@ -1,28 +1,14 @@
-import { timingSafeEqual } from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
 import { householdsWithBank, importHousehold } from "@/lib/server/bank/import";
-import { cronEnv } from "@/lib/server/env";
+import { isCronRequest } from "@/lib/server/cron";
 import { jobContext } from "@/lib/server/household";
 
-/* Daily bank import (vercel.json). Vercel Cron sends "Authorization: Bearer $CRON_SECRET". */
+/* Daily bank import (vercel.json). */
 
 export const maxDuration = 300;
 
-function authorized(req: NextRequest): boolean {
-  // Read the request first: that keeps this handler out of build-time prerendering.
-  const given = Buffer.from(req.headers.get("authorization") ?? "");
-  let secret: string;
-  try {
-    secret = cronEnv().CRON_SECRET;
-  } catch {
-    return false; // not configured: nobody may run it
-  }
-  const expected = Buffer.from(`Bearer ${secret}`);
-  return given.length === expected.length && timingSafeEqual(given, expected);
-}
-
 export async function GET(req: NextRequest) {
-  if (!authorized(req)) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  if (!isCronRequest(req)) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const summary = { households: 0, imported: 0, expired: 0, failed: 0 };
   for (const householdId of await householdsWithBank()) {
     summary.households++;

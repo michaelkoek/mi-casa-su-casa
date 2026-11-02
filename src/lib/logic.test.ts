@@ -27,6 +27,7 @@ import {
   parseIntervalHours,
   normalizeItem,
   parseEuroToCents,
+  parseOptionalCents,
   parseIngredients,
   suggestMeals,
 } from "./logic";
@@ -403,5 +404,21 @@ describe("task due choice", () => {
     expect(dueFromChoice("tomorrow", today, "2026-12-01")).toBe("2026-10-29");
     expect(dueFromChoice("pick", today, "2026-12-01")).toBe("2026-12-01");
     expect(dueFromChoice("none", today, "2026-12-01")).toBeNull();
+  });
+});
+
+describe("parseOptionalCents", () => {
+  it("treats empty input as no value", () => {
+    expect(parseOptionalCents("")).toEqual({ ok: true, cents: null });
+    expect(parseOptionalCents("  ")).toEqual({ ok: true, cents: null });
+  });
+  it("parses valid amounts", () => {
+    expect(parseOptionalCents("450")).toEqual({ ok: true, cents: 45000 });
+    expect(parseOptionalCents("12,50")).toEqual({ ok: true, cents: 1250 });
+  });
+  it("rejects zero, text and too large amounts", () => {
+    expect(parseOptionalCents("0")).toEqual({ ok: false });
+    expect(parseOptionalCents("abc")).toEqual({ ok: false });
+    expect(parseOptionalCents(String((MAX_CENTS + 1) / 100))).toEqual({ ok: false });
   });
 });

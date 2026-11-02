@@ -176,6 +176,13 @@ export function parseEuroToCents(input: string): number | null {
   return cents > 0 ? cents : null;
 }
 
+/** Optional euro input: "" or whitespace → { ok: true, cents: null }; valid positive amount <= MAX_CENTS → { ok: true, cents }; else { ok: false }. */
+export function parseOptionalCents(input: string): { ok: true; cents: number | null } | { ok: false } {
+  if (input.trim() === "") return { ok: true, cents: null };
+  const cents = parseEuroToCents(input);
+  return cents !== null && cents <= MAX_CENTS ? { ok: true, cents } : { ok: false };
+}
+
 /** Project cost input to cents. "" / whitespace / "0" / "0,00" → 0; a valid amount → cents; > MAX_CENTS or unreadable → null. */
 export function parseCostCents(input: string): number | null {
   if (/^[€\s]*0*([.,]0{1,2})?[€\s]*$/.test(input)) return 0;

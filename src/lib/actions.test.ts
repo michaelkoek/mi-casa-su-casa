@@ -21,6 +21,13 @@ import {
   saveRecipe,
   setBudget,
   addCategory,
+  addExpense,
+  removeCategory,
+  removeRule,
+  removeTransaction,
+  updateCategory,
+  updateRule,
+  updateTransaction,
   toggleSignal,
   toggleTask,
   addDose, updateDose, removeDose, addTemperature, updateTemperature, removeTemperature, updateAppointment,
@@ -28,6 +35,7 @@ import {
   removeRoutine, updateTask, removeTask, updateProject, removeProject, renameMaterial, removeMaterial, addMedicine, updateMedicine, removeMedicine, addSize, updateSize, removeSize, addStock, renameStock, removeStock,
 } from "./actions";
 import { MAX_CENTS } from "./logic";
+import { shopKey } from "./insights";
 import { createSeed } from "./seed";
 
 const now = new Date("2026-10-24T14:00:00");
@@ -457,5 +465,128 @@ describe("home updaters", () => {
     const next = removeMaterial("p1", "mt1")(s);
     expect(next.projects[0].materials.map((m) => m.id)).toEqual(["mt2", "mt3"]);
     expect(next.projects[1]).toBe(s.projects[1]);
+  });
+});
+
+describe("transactions (batch 3)", () => {
+  const withManual = () => addExpense(1250, "Bakker", "food", now, "xm1")(createSeed(now));
+
+  it("updateTransaction patches a manual row", () => {
+    const s = withManual();
+    const next = updateTransaction("xm1", { amountCents: 2000, date: "2026-10-01", counterparty: " Slager ", categoryId: "home" })(s);
+    expect(next.transactions.find((t) => t.id === "xm1")).toMatchObject({
+      amountCents: -2000, date: "2026-10-01", counterparty: "Slager", categoryId: "home",
+    });
+  });
+
+  it("updateTransaction ignores amount and date on bank rows but applies the name", () => {
+    const s = createSeed(now);
+    const before = s.transactions.find((t) => t.id === "x12")!;
+    const next = updateTransaction("x12", { amountCents: 1, date: "2026-01-01", counterparty: "Gamma" })(s);
+    expect(next.transactions.find((t) => t.id === "x12")).toEqual({ ...before, counterparty: "Gamma" });
+  });
+
+  it("updateTransaction rejects invalid fields and unknown ids", () => {
+    const s = withManual();
+    expect(updateTransaction("xm1", { counterparty: "  " })(s)).toBe(s);
+    expect(updateTransaction("xm1", { categoryId: "nope" })(s)).toBe(s);
+    expect(updateTransaction("xm1", { amountCents: 0 })(s)).toBe(s);
+    expect(updateTransaction("xm1", { amountCents: MAX_CENTS + 1 })(s)).toBe(s);
+    expect(updateTransaction("xm1", { date: "2026-02-31" })(s)).toBe(s);
+    expect(updateTransaction("nope", { counterparty: "A" })(s)).toBe(s);
+  });
+
+  it("updateTransaction with an empty patch returns the same state", () => {
+    const s = createSeed(now);
+    expect(updateTransaction("x12", {})(s)).toBe(s);
+    expect(updateTransaction("x12", {}, true)(s)).toBe(s);
+  });
+
+  it("updateTransaction remember uses the counterparty from before the patch", () => {
+    const s = createSeed(now);
+    const next = updateTransaction("x12", { counterparty: "Mijn klus", categoryId: "home" }, true)(s);
+    expect(next.rules).toHaveLength(s.rules.length + 1);
+    expect(next.rules.at(-1)).toMatchObject({ contains: shopKey("Gamma Utrecht"), categoryId: "home" });
+    expect(next.transactions.find((t) => t.id === "x12")).toMatchObject({ counterparty: "Mijn klus", categoryId: "home" });
+  });
+
+  it("removeTransaction removes manual rows only", () => {
+    const s = withManual();
+    expect(removeTransaction("xm1")(s).transactions.some((t) => t.id === "xm1")).toBe(false);
+    const seed = createSeed(now);
+    expect(removeTransaction("x01")(seed)).toBe(seed);
+  });
+
+  it("addExpense accepts a null category", () => {
+    const s = addExpense(500, "Kiosk", null, now, "xm2")(createSeed(now));
+    expect(s.transactions.find((t) => t.id === "xm2")).toMatchObject({ categoryId: null, amountCents: -500, source: "manual" });
+  });
+});
+
+describe("categories and rules (batch 3)", () => {
+  it("addCategory trims, uses newId and validates", () => {
+    const s = createSeed(now);
+    const next = addCategory("  Abonnementen  ", 4500, "k9")(s);
+    expect(next.categories.at(-1)).toEqual({ id: "k9", name: "Abonnementen", budgetCents: 4500 });
+    expect(addCategory("   ", null)(s)).toBe(s);
+    expect(addCategory("X", -1)(s)).toBe(s);
+    expect(addCategory("X", MAX_CENTS + 1)(s)).toBe(s);
+  });
+
+  it("updateCategory renames and sets or clears the budget", () => {
+    const s = createSeed(now);
+    const renamed = updateCategory("food", { name: " Eten " })(s);
+    expect(renamed.categories.find((c) => c.id === "food")?.name).toBe("Eten");
+    expect(updateCategory("food", { budgetCents: 100 })(s).categories.find((c) => c.id === "food")?.budgetCents).toBe(100);
+    expect(updateCategory("food", { budgetCents: null })(s).categories.find((c) => c.id === "food")?.budgetCents).toBeNull();
+    expect(updateCategory("food", { name: " " })(s)).toBe(s);
+    expect(updateCategory("food", { budgetCents: -5 })(s)).toBe(s);
+  });
+
+  it("removeCategory nulls transactions and drops rules, leaving the rest alone", () => {
+    const s = createSeed(now);
+    const next = removeCategory("food")(s);
+    expect(next.categories.some((c) => c.id === "food")).toBe(false);
+    expect(next.categories).toHaveLength(s.categories.length - 1);
+    for (const t of s.transactions) {
+      const after = next.transactions.find((x) => x.id === t.id)!;
+      if (t.categoryId === "food") expect(after.categoryId).toBeNull();
+      else expect(after).toBe(t);
+    }
+    expect(next.rules.some((r) => r.id === "r1" || r.id === "r2")).toBe(false);
+    expect(next.rules.length).toBe(s.rules.filter((r) => r.categoryId !== "food").length);
+  });
+
+  it("updateRule changes contains and category, rejects bad input", () => {
+    const s = createSeed(now);
+    const next = updateRule("r1", { contains: " ah ", categoryId: "out" })(s);
+    expect(next.rules.find((r) => r.id === "r1")).toMatchObject({ contains: " ah ", categoryId: "out" });
+    expect(updateRule("r1", { categoryId: "nope" })(s)).toBe(s);
+    expect(updateRule("r1", { contains: "  " })(s)).toBe(s);
+  });
+
+  it("updateRule keeps trailing spaces and untouched long values; no-op returns the same state", () => {
+    const base = createSeed(now);
+    const long = "x".repeat(150);
+    const s = { ...base, rules: [{ id: "rp", contains: "plus ", categoryId: "out" }, { id: "rl", contains: long, categoryId: "out" }, ...base.rules] };
+    expect(updateRule("rp", { contains: "plus " })(s)).toBe(s);
+    expect(updateRule("rp", { categoryId: "out" })(s)).toBe(s);
+    const moved = updateRule("rp", { categoryId: "food" })(s);
+    expect(moved.rules.find((r) => r.id === "rp")).toMatchObject({ contains: "plus ", categoryId: "food" });
+    expect(moved.rules.find((r) => r.id === "rl")?.contains).toBe(long);
+    expect(updateRule("rp", { contains: "plus  " })(s).rules.find((r) => r.id === "rp")?.contains).toBe("plus  ");
+    expect(updateRule("rl", { contains: long + "y" })(s).rules.find((r) => r.id === "rl")?.contains).toHaveLength(100);
+  });
+
+  it("updateCategory returns the same state when nothing changes", () => {
+    const s = createSeed(now);
+    const c = s.categories.find((x) => x.id === "food")!;
+    expect(updateCategory("food", { name: c.name, budgetCents: c.budgetCents })(s)).toBe(s);
+  });
+
+  it("removeRule removes only that rule", () => {
+    const s = createSeed(now);
+    expect(removeRule("r2")(s).rules.map((r) => r.id)).not.toContain("r2");
+    expect(removeRule("r2")(s).rules).toHaveLength(s.rules.length - 1);
   });
 });

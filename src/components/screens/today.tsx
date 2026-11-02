@@ -10,7 +10,7 @@ import { budgetSummary, formatEuro, formatTime, minutesAgo, missingIngredients, 
 import { useHousehold, useMemberName, useNow } from "@/lib/store";
 import { Checkbox } from "../form";
 import { findHomeItem, HomeSheet, type HomeEditing } from "../home-forms";
-import { BinArt, BlocksArt, CalendarArt, LaundryArt, PiggyArt, PlateArt, PumpkinArt, ToolboxArt } from "../illustrations";
+import { BinArt, BlocksArt, CalendarArt, LampArt, LaundryArt, PiggyArt, PlateArt, PumpkinArt, ToolboxArt } from "../illustrations";
 import { Screen } from "../screen";
 import { useUI } from "../ui-provider";
 
@@ -249,6 +249,9 @@ function Bento({ openCount }: { openCount: number }) {
           <PumpkinArt />
         </Tile>
       </div>
+      <Tile href="/huis/lampen" tone="col-span-2 bg-tile-lights" h="h-[132px]" i={6} title={t("lights")} sub={t("lightsSub")}>
+        <LampArt />
+      </Tile>
     </div>
   );
 }

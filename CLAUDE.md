@@ -14,6 +14,7 @@ Volledig bouwplan: https://claude.ai/artifact/Gc94FnDWwkzxW28R1UHJtS — lees he
 5. **Klusjes** — backlog per ruimte (afmaken / onderhoud), prioriteit, kosten, materialen
 6. **Eten** — recepten, weekmenu, boodschappenlijst
 7. **Agenda en Vandaag** — gedeelde agenda via iCal-link (alleen lezen), overzichtsscherm
+8. **Lampen** — Shelly en Philips Hue via hun cloud-API's: aan/uit, helderheid, per ruimte (zie `docs/lights.md`)
 
 Niet in v1: mailsamenvatting, sparen/beleggen, UI om andere huishoudens uit te nodigen, verdeling van kosten tussen personen.
 

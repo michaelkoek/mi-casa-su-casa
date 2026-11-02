@@ -190,16 +190,66 @@ export const categorizeTransaction = (txId: string, categoryId: string, remember
   return { ...s, rules, transactions: s.transactions.map((t) => (t.id === txId ? { ...t, categoryId } : t)) };
 };
 
-export const addExpense = (amountCents: number, counterparty: string, categoryId: string, now: Date) => (s: S): S => ({
+/** Appends a manual expense. `categoryId` may be null (no categories); `newId` for deterministic tests. */
+export const addExpense = (amountCents: number, counterparty: string, categoryId: string | null, now: Date, newId = uid("x")) => (s: S): S => ({
   ...s,
   transactions: [
     ...s.transactions,
     {
-      id: uid("x"), date: toDateKey(now), counterparty, amountCents: -Math.abs(amountCents), categoryId,
+      id: newId, date: toDateKey(now), counterparty, amountCents: -Math.abs(amountCents), categoryId,
       source: "manual", accountId: null, description: null, transfer: false,
     },
   ],
 });
+
+type TransactionPatch = Partial<{ amountCents: number; date: string; counterparty: string; categoryId: string | null; transfer: boolean }>;
+
+/**
+ * Patches one transaction. On bank rows amountCents and date are ignored (the bank owns them).
+ * With `remember` and a categoryId in the patch, also adds a rule like categorizeTransaction, based on the
+ * counterparty as it was BEFORE this patch (rules match the bank's name on future imports).
+ * Any invalid field leaves the state unchanged; an effectively empty patch returns `s` itself.
+ */
+export const updateTransaction = (id: string, patch: TransactionPatch, remember = false) => (s: S): S => {
+  const tx = s.transactions.find((t) => t.id === id);
+  if (!tx) return s;
+  const manual = tx.source === "manual";
+  const next: TransactionPatch = {};
+  if (patch.amountCents !== undefined && manual) {
+    const n = patch.amountCents;
+    if (!Number.isInteger(n) || n === 0 || Math.abs(n) > MAX_CENTS) return s;
+    next.amountCents = -Math.abs(n);
+  }
+  if (patch.date !== undefined && manual) {
+    const d = patch.date;
+    if (!DATE_RE.test(d) || toDateKey(new Date(`${d}T12:00:00`)) !== d) return s;
+    next.date = d;
+  }
+  if (patch.counterparty !== undefined) {
+    const counterparty = cleanText(patch.counterparty, 200);
+    if (!counterparty) return s;
+    next.counterparty = counterparty;
+  }
+  if (patch.categoryId !== undefined) {
+    if (patch.categoryId !== null && !s.categories.some((c) => c.id === patch.categoryId)) return s;
+    next.categoryId = patch.categoryId;
+  }
+  if (patch.transfer !== undefined) {
+    if (typeof patch.transfer !== "boolean") return s;
+    next.transfer = patch.transfer;
+  }
+  const withRule = remember && typeof next.categoryId === "string";
+  if (Object.keys(next).length === 0 && !withRule) return s;
+  const base = withRule ? categorizeTransaction(id, next.categoryId as string, true)(s) : s;
+  return { ...base, transactions: base.transactions.map((t) => (t.id === id ? { ...t, ...next } : t)) };
+};
+
+/** Removes a manual transaction. Bank rows are never removed (state unchanged). */
+export const removeTransaction = (id: string) => (s: S): S => {
+  const tx = s.transactions.find((t) => t.id === id);
+  if (!tx || tx.source !== "manual") return s;
+  return { ...s, transactions: s.transactions.filter((t) => t.id !== id) };
+};
 
 export const setBudget = (categoryId: string, budgetCents: number | null) => (s: S): S => ({
   ...s,
@@ -212,10 +262,60 @@ export const setTransfer = (txId: string, transfer: boolean) => (s: S): S => ({
   transactions: s.transactions.map((t) => (t.id === txId ? { ...t, transfer } : t)),
 });
 
-export const addCategory = (name: string, budgetCents: number | null) => (s: S): S => ({
+const budgetOk = (n: number | null) => n === null || (Number.isInteger(n) && n >= 0 && n <= MAX_CENTS);
+
+/** Appends a category. Name trimmed and cut to 40; empty name or invalid budget (not null / int 0..MAX_CENTS) → unchanged. */
+export const addCategory = (name: string, budgetCents: number | null, newId = uid("k")) => (s: S): S => {
+  const clean = cleanText(name, 40);
+  if (!clean || !budgetOk(budgetCents)) return s;
+  return { ...s, categories: [...s.categories, { id: newId, name: clean, budgetCents }] };
+};
+
+/** Patches name and/or budget. Same validation as addCategory; invalid or no actual change → unchanged. */
+export const updateCategory = (id: string, patch: Partial<{ name: string; budgetCents: number | null }>) => (s: S): S => {
+  const next: Partial<{ name: string; budgetCents: number | null }> = {};
+  if (patch.name !== undefined) {
+    const name = cleanText(patch.name, 40);
+    if (!name) return s;
+    next.name = name;
+  }
+  if (patch.budgetCents !== undefined) {
+    if (!budgetOk(patch.budgetCents)) return s;
+    next.budgetCents = patch.budgetCents;
+  }
+  const current = s.categories.find((c) => c.id === id);
+  if (!current || (Object.keys(next) as (keyof typeof next)[]).every((k) => current[k] === next[k])) return s;
+  return { ...s, categories: s.categories.map((c) => (c.id === id ? { ...c, ...next } : c)) };
+};
+
+/** Removes the category, sets categoryId null on its transactions and drops its rules: one updater, one undo. */
+export const removeCategory = (id: string) => (s: S): S => ({
   ...s,
-  categories: [...s.categories, { id: uid("k"), name, budgetCents }],
+  categories: s.categories.filter((c) => c.id !== id),
+  transactions: s.transactions.map((t) => (t.categoryId === id ? { ...t, categoryId: null } : t)),
+  rules: s.rules.filter((r) => r.categoryId !== id),
 });
+
+/**
+ * Patches a rule. contains is kept as given (surrounding spaces are meaningful, e.g. "plus "), only cut to 100 and
+ * rejected when blank; categoryId must exist → else unchanged. No actual change → unchanged.
+ */
+export const updateRule = (id: string, patch: Partial<{ contains: string; categoryId: string }>) => (s: S): S => {
+  const next: Partial<{ contains: string; categoryId: string }> = {};
+  if (patch.contains !== undefined) {
+    if (!patch.contains.trim()) return s;
+    next.contains = patch.contains.slice(0, 100);
+  }
+  if (patch.categoryId !== undefined) {
+    if (!s.categories.some((c) => c.id === patch.categoryId)) return s;
+    next.categoryId = patch.categoryId;
+  }
+  const current = s.rules.find((r) => r.id === id);
+  if (!current || (Object.keys(next) as (keyof typeof next)[]).every((k) => current[k] === next[k])) return s;
+  return { ...s, rules: s.rules.map((r) => (r.id === id ? { ...r, ...next } : r)) };
+};
+
+export const removeRule = (id: string) => (s: S): S => ({ ...s, rules: s.rules.filter((r) => r.id !== id) });
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;

@@ -1,12 +1,12 @@
 import "server-only";
-import { eq } from "drizzle-orm";
+import { eq, inArray, ne } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 import type { PgColumn } from "drizzle-orm/pg-core";
 import { db } from "@/db";
-import { members } from "@/db/schema";
-import { COLLECTIONS, type Change, type Changeset } from "@/lib/sync/collections";
+import { categoryRules, members, transactions } from "@/db/schema";
+import { BANK_LOCKED_FIELDS, COLLECTIONS, type Change, type Changeset } from "@/lib/sync/collections";
 import { orderChanges } from "@/lib/sync/diff";
-import { memberRefIssues } from "@/lib/sync/schema";
+import { bankRowIssues, memberRefIssues, transactionKeys } from "@/lib/sync/schema";
 import { TABLES } from "./household-state";
 import { scope, type HouseholdContext } from "./household";
 
@@ -41,30 +41,61 @@ export async function writeChangeset(ctx: HouseholdContext, cs: Changeset): Prom
       return { ok: false, error: "invalid" };
     }
 
+    // The bank owns its rows: reject any change to amount, date or description, any delete, any overwrite.
+    const keys = transactionKeys(cs.changes);
+    if (keys.length > 0) {
+      const stored = await db
+        .select({ id: transactions.id, source: transactions.source })
+        .from(transactions)
+        .where(s.where(transactions, inArray(transactions.id, keys)));
+      const bankIds = new Set(stored.filter((r) => r.source === "bank").map((r) => r.id));
+      if (bankRowIssues(cs.changes, bankIds).length > 0) return { ok: false, error: "invalid" };
+    }
+
     const now = new Date();
-    const stmts = orderChanges(cs.changes).map((ch) => {
+    // Defense in depth: even if the lookup raced with an import, SQL never touches a bank row's locked fields.
+    const notBank = ne(transactions.source, "bank");
+    const stmts = orderChanges(cs.changes).flatMap((ch): unknown[] => {
       const table = TABLES[ch.c];
       const keyName = COLLECTIONS[ch.c].key;
       const col = (table as unknown as Record<string, PgColumn>)[keyName];
+      const isTx = ch.c === "transactions";
       if (ch.op === "insert") {
         const row = convert(ch.c, ch.row as unknown as Data);
         const { [keyName]: _key, ...rest } = row;
         void _key;
-        return db
-          .insert(table)
-          .values({ ...row, householdId: ctx.householdId })
-          .onConflictDoUpdate({
-            target: [(table as unknown as Record<string, PgColumn>).householdId, col],
-            set: { ...rest, updatedAt: now },
-          });
+        return [
+          db
+            .insert(table)
+            .values({ ...row, householdId: ctx.householdId })
+            .onConflictDoUpdate({
+              target: [(table as unknown as Record<string, PgColumn>).householdId, col],
+              set: { ...rest, updatedAt: now },
+              ...(isTx ? { setWhere: notBank } : {}),
+            }),
+        ];
       }
       if (ch.op === "update") {
-        return db
-          .update(table)
-          .set({ ...convert(ch.c, ch.patch as unknown as Data), updatedAt: now })
-          .where(s.where(table, eq(col, keyValue(ch.c, ch.key))));
+        const locked = isTx && BANK_LOCKED_FIELDS.some((f) => f in (ch.patch as object));
+        return [
+          db
+            .update(table)
+            .set({ ...convert(ch.c, ch.patch as unknown as Data), updatedAt: now })
+            .where(s.where(table, eq(col, keyValue(ch.c, ch.key)), locked ? notBank : undefined)),
+        ];
       }
-      return db.delete(table).where(s.where(table, eq(col, keyValue(ch.c, ch.key))));
+      if (ch.c === "categories") {
+        // The client only holds recent transactions: null the rest here so the foreign keys never block.
+        return [
+          db
+            .update(transactions)
+            .set({ categoryId: null, updatedAt: now })
+            .where(s.where(transactions, eq(transactions.categoryId, ch.key))),
+          db.delete(categoryRules).where(s.where(categoryRules, eq(categoryRules.categoryId, ch.key))),
+          db.delete(table).where(s.where(table, eq(col, ch.key))),
+        ];
+      }
+      return [db.delete(table).where(s.where(table, eq(col, keyValue(ch.c, ch.key)), isTx ? notBank : undefined))];
     });
 
     await db.batch(stmts as unknown as [BatchItem<"pg">, ...BatchItem<"pg">[]]);

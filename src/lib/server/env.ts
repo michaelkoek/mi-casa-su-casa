@@ -83,6 +83,22 @@ export function bankEnv(): z.infer<typeof bank> | null {
   return parse(bank, "bank");
 }
 
+const hue = z.object({
+  HUE_CLIENT_ID: z.string().min(1),
+  HUE_CLIENT_SECRET: z.string().min(1),
+});
+
+/** Key that encrypts the light credentials, or null when not set up (lights then report "unavailable"). */
+export function lightsKey(): string | null {
+  return process.env.LIGHTS_TOKEN_KEY || null;
+}
+
+/** Hue Remote API app, or null when not registered (Shelly works without it). */
+export function hueEnv(): z.infer<typeof hue> | null {
+  if (!process.env.HUE_CLIENT_ID) return null;
+  return parse(hue, "hue");
+}
+
 const cron = z.object({ CRON_SECRET: z.string().min(16) });
 
 /** Shared secret Vercel Cron sends as a bearer token. */

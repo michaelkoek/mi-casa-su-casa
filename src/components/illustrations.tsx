@@ -74,6 +74,19 @@ export function ToolboxArt({ className }: Props) {
   );
 }
 
+export function LampArt({ className }: Props) {
+  return (
+    <svg className={className} width="120" height="124" viewBox="0 0 120 124" aria-hidden="true">
+      <rect x="57" y="0" width="6" height="30" fill="#17181f" />
+      <path d="M46 28h28l4 14H42z" fill="#17181f" />
+      <path d="M42 40h36l26 44H16z" fill="#e8743b" />
+      <path d="M42 40h36l5 9H37z" fill="#f4a26e" />
+      <path d="M42 84a18 18 0 0 0 36 0z" fill="#f6c86b" />
+      <path d="M30 108l-6 10M60 112v12M90 108l6 10" stroke="#f6c86b" strokeWidth="5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 export function PumpkinArt({ className }: Props) {
   return (
     <svg className={className} width="96" height="90" viewBox="0 0 96 90" aria-hidden="true">

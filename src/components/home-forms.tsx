@@ -61,11 +61,13 @@ export function TaskForm({ item, onDone }: { item?: Task | null; onDone: () => v
   const t = useTranslations("quick.task");
   const { state } = useHousehold();
   const { act } = useUI();
-  const [title, setTitle] = useState(item?.title ?? "");
-  const [who, setWho] = useState(item?.assigneeId ?? state.me);
+  // Patch only what changed since the form opened (snapshot), so the other member's concurrent edits to other fields survive.
+  const [original] = useState(item ?? null);
+  const [title, setTitle] = useState(original?.title ?? "");
+  const [who, setWho] = useState(original?.assigneeId ?? state.me);
   const [today] = useState(() => toDateKey(new Date()));
-  const [choice, setChoice] = useState<DueChoice>(item ? taskDueChoice(item.due, today) : "today");
-  const [picked, setPicked] = useState(item?.due ?? addDays(today, 2));
+  const [choice, setChoice] = useState<DueChoice>(original ? taskDueChoice(original.due, today) : "today");
+  const [picked, setPicked] = useState(original?.due ?? addDays(today, 2));
   const [titleError, setTitleError] = useState<string | null>(null);
   const [dateError, setDateError] = useState<string | null>(null);
 
@@ -75,13 +77,12 @@ export function TaskForm({ item, onDone }: { item?: Task | null; onDone: () => v
     if (choice === "pick" && !DATE_RE.test(picked)) return setDateError(t("dateError"));
     const due = dueFromChoice(choice, today, picked);
     onDone();
-    if (item) {
-      // Only patch what changed, so a concurrent edit by the other member isn't overwritten.
+    if (original) {
       const patch: { title?: string; assigneeId?: string; due?: string | null } = {};
-      if (title.trim() !== item.title) patch.title = title;
-      if (who !== item.assigneeId) patch.assigneeId = who;
-      if (due !== item.due) patch.due = due;
-      act(t("updated", { title: title.trim() }), updateTask(item.id, patch));
+      if (title.trim() !== original.title) patch.title = title;
+      if (who !== original.assigneeId) patch.assigneeId = who;
+      if (due !== original.due) patch.due = due;
+      if (Object.keys(patch).length > 0) act(t("updated", { title: title.trim() }), updateTask(original.id, patch));
     } else {
       act(t("saved"), addTask(title.trim(), who, due));
     }
@@ -113,11 +114,12 @@ export function TaskForm({ item, onDone }: { item?: Task | null; onDone: () => v
 export function ProjectForm({ item, onDone }: { item?: HomeProject | null; onDone: () => void }) {
   const t = useTranslations("quick.project");
   const { act } = useUI();
-  const [title, setTitle] = useState(item?.title ?? "");
-  const [room, setRoom] = useState(item?.room ?? "");
-  const [cost, setCost] = useState(item && item.costCents > 0 ? centsToEuroInput(item.costCents) : "");
-  const [kind, setKind] = useState<ProjectKind>(item?.kind ?? "finish");
-  const [priority, setPriority] = useState<Priority>(item?.priority ?? "medium");
+  const [original] = useState(item);
+  const [title, setTitle] = useState(original?.title ?? "");
+  const [room, setRoom] = useState(original?.room ?? "");
+  const [cost, setCost] = useState(original && original.costCents > 0 ? centsToEuroInput(original.costCents) : "");
+  const [kind, setKind] = useState<ProjectKind>(original?.kind ?? "finish");
+  const [priority, setPriority] = useState<Priority>(original?.priority ?? "medium");
   const [titleError, setTitleError] = useState<string | null>(null);
   const [costError, setCostError] = useState<string | null>(null);
 
@@ -128,14 +130,14 @@ export function ProjectForm({ item, onDone }: { item?: HomeProject | null; onDon
     if (costCents === null) return setCostError(t("costError"));
     const cleanRoom = room.trim() || t("roomDefault");
     onDone();
-    if (item) {
+    if (original) {
       const patch: { title?: string; room?: string; kind?: ProjectKind; priority?: Priority; costCents?: number } = {};
-      if (title.trim() !== item.title) patch.title = title;
-      if (cleanRoom !== item.room) patch.room = cleanRoom;
-      if (kind !== item.kind) patch.kind = kind;
-      if (priority !== item.priority) patch.priority = priority;
-      if (costCents !== item.costCents) patch.costCents = costCents;
-      act(t("updated", { title: title.trim() }), updateProject(item.id, patch));
+      if (title.trim() !== original.title) patch.title = title;
+      if (cleanRoom !== original.room) patch.room = cleanRoom;
+      if (kind !== original.kind) patch.kind = kind;
+      if (priority !== original.priority) patch.priority = priority;
+      if (costCents !== original.costCents) patch.costCents = costCents;
+      if (Object.keys(patch).length > 0) act(t("updated", { title: title.trim() }), updateProject(original.id, patch));
     } else {
       act(t("saved"), addProject({ title: title.trim(), room: cleanRoom, kind, priority, costCents }));
     }
@@ -164,14 +166,15 @@ export function ProjectForm({ item, onDone }: { item?: HomeProject | null; onDon
 export function MaterialForm({ projectId, item, onDone }: { projectId: string; item: Material; onDone: () => void }) {
   const t = useTranslations("home.projectsView.materialForm");
   const { act } = useUI();
-  const [name, setName] = useState(item.name);
+  const [original] = useState(item);
+  const [name, setName] = useState(original.name);
   const [error, setError] = useState<string | null>(null);
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return setError(t("error"));
     onDone();
-    act(t("updated", { name: name.trim() }), renameMaterial(projectId, item.id, name));
+    if (name.trim() !== original.name) act(t("updated", { name: name.trim() }), renameMaterial(projectId, original.id, name));
   };
 
   return (

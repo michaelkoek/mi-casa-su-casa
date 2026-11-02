@@ -1,17 +1,18 @@
 "use client";
 
-import { CaretDown, ChartBar, ListBullets, Plus, type Icon } from "@phosphor-icons/react";
+import { CaretDown, CaretRight, ChartBar, ListBullets, Plus, type Icon } from "@phosphor-icons/react";
 import clsx from "clsx";
 import { AnimatePresence, motion } from "motion/react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
-import { useState, type FormEvent } from "react";
-import { categorizeTransaction, setBudget } from "@/lib/actions";
-import { MAX_CENTS, budgetSummary, centsToEuroInput, formatEuro, parseEuroToCents, toDateKey } from "@/lib/logic";
+import { useState } from "react";
+import { categorizeTransaction } from "@/lib/actions";
+import { budgetSummary, formatEuro, toDateKey } from "@/lib/logic";
 import { useHousehold, useNow } from "@/lib/store";
 import type { Category } from "@/lib/types";
 import { BankStrip } from "../bank";
-import { Field, PrimaryButton, SoftButton } from "../form";
+import { SoftButton } from "../form";
+import { CategoryForm } from "../money-forms";
 import { PiggyArt } from "../illustrations";
 import { Screen, SectionTitle } from "../screen";
 import { Sheet } from "../sheet";
@@ -32,12 +33,24 @@ function Money() {
   const { act, openSheet } = useUI();
   const [remember, setRemember] = useState(true);
   const [openCat, setOpenCat] = useState<string | null>(null);
-  const [budgetId, setBudgetId] = useState<string | null>(null);
-  const [budgetOpen, setBudgetOpen] = useState(false);
+  const [catId, setCatId] = useState<string | "new" | null>(null);
+  // Separate from catId so the sheet keeps its content while it slides away.
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [formKey, setFormKey] = useState(0);
   const month = toDateKey(now).slice(0, 7);
   const summary = budgetSummary(state.transactions, state.categories, month);
   const left = summary.totalBudgetCents - summary.budgetedSpentCents;
   const monthName = now.toLocaleDateString("nl-NL", { month: "long" });
+
+  const isNew = catId === "new";
+  const editing = isNew ? null : (state.categories.find((c) => c.id === catId) ?? null);
+  // Deleted (by us or the other member): close for good, so an undo doesn't reopen the sheet.
+  if (sheetOpen && !isNew && editing === null) setSheetOpen(false);
+  const openCategory = (id: string | "new") => {
+    setCatId(id);
+    setFormKey((k) => k + 1);
+    setSheetOpen(true);
+  };
 
   const monthCount = state.transactions.filter((x) => x.date.startsWith(month)).length;
 
@@ -146,7 +159,7 @@ function Money() {
                       </li>
                     ))}
                     <li className="pb-3">
-                      <button type="button" onClick={() => { setBudgetId(line.category.id); setBudgetOpen(true); }}
+                      <button type="button" onClick={() => openCategory(line.category.id)}
                         className="press flex min-h-11 w-full items-center justify-between gap-3 rounded-2xl bg-bg px-4 text-sm">
                         <span className="text-ink-2">
                           {budget !== null ? t("budget.line", { amount: formatEuro(budget, true) }) : t("budget.none")}
@@ -160,11 +173,20 @@ function Money() {
             </div>
           );
         })}
+        <button type="button" onClick={() => openCategory("new")}
+          className="press flex min-h-12 w-full items-center gap-2 border-b border-line py-3 text-sm font-semibold text-ink-2">
+          <Plus size={18} weight="bold" /> {t("addCategory")}
+        </button>
+        <Link href="/geld/regels" transitionTypes={["nav-forward"]}
+          className="press flex min-h-12 items-center justify-between py-3 text-sm font-semibold text-ink-2">
+          {t("rulesLink", { count: state.rules.length })}
+          <CaretRight size={18} className="text-ink-3" />
+        </Link>
       </div>
 
-      <BudgetSheet category={state.categories.find((c) => c.id === budgetId) ?? null}
-        spentCents={summary.lines.find((l) => l.category.id === budgetId)?.spentCents ?? 0}
-        open={budgetOpen} onClose={() => setBudgetOpen(false)} />
+      <CategorySheet category={editing} isNew={isNew}
+        spentCents={summary.lines.find((l) => l.category.id === catId)?.spentCents ?? 0}
+        open={sheetOpen} formKey={formKey} onClose={() => setSheetOpen(false)} />
 
       <SoftButton className="mt-3 w-full" onClick={() => openSheet("expense")}>
         <Plus size={18} weight="bold" /> {t("addCash")}
@@ -186,44 +208,15 @@ function NavTile({ href, Icon, title, sub }: { href: string; Icon: Icon; title: 
   );
 }
 
-/** Set, change or clear the monthly budget of one category. */
-function BudgetSheet({ category, spentCents, open, onClose }: { category: Category | null; spentCents: number; open: boolean; onClose: () => void }) {
-  const t = useTranslations("money.budget");
+/** Add or edit one category: name, monthly budget, delete. */
+function CategorySheet({ category, isNew, spentCents, open, formKey, onClose }: {
+  category: Category | null; isNew: boolean; spentCents: number; open: boolean; formKey: number; onClose: () => void;
+}) {
+  const t = useTranslations("money.category");
+  const visible = isNew || category !== null;
   return (
-    <Sheet open={open && category !== null} onClose={onClose} title={category ? t("title", { category: category.name }) : ""}>
-      {category && <BudgetForm key={category.id} category={category} spentCents={spentCents} onClose={onClose} />}
+    <Sheet open={open && visible} onClose={onClose} title={isNew ? t("newTitle") : t("editTitle")}>
+      {visible && <CategoryForm key={formKey} item={isNew ? null : category} spentCents={spentCents} onDone={onClose} />}
     </Sheet>
-  );
-}
-
-function BudgetForm({ category, spentCents, onClose }: { category: Category; spentCents: number; onClose: () => void }) {
-  const t = useTranslations("money.budget");
-  const { act } = useUI();
-  const [amount, setAmount] = useState(category.budgetCents === null ? "" : centsToEuroInput(category.budgetCents));
-  const [error, setError] = useState<string | null>(null);
-
-  const submit = (e: FormEvent) => {
-    e.preventDefault();
-    const cents = parseEuroToCents(amount);
-    if (cents === null || cents > MAX_CENTS) return setError(t("amountError"));
-    if (cents === category.budgetCents) return onClose();
-    onClose();
-    act(t("saved", { category: category.name, amount: formatEuro(cents, true) }), setBudget(category.id, cents));
-  };
-
-  const clear = () => {
-    onClose();
-    act(t("cleared", { category: category.name }), setBudget(category.id, null));
-  };
-
-  return (
-    <form onSubmit={submit} className="flex flex-col gap-5">
-      <p className="text-[13px] text-ink-3">{t("spent", { amount: formatEuro(spentCents) })}</p>
-      <Field label={t("amount")} inputMode="decimal" placeholder="450" value={amount} autoFocus error={error}
-        hint={category.budgetCents === null ? t("hint") : undefined}
-        onChange={(e) => { setAmount(e.target.value); setError(null); }} />
-      <PrimaryButton type="submit">{t("save")}</PrimaryButton>
-      {category.budgetCents !== null && <SoftButton className="w-full" onClick={clear}>{t("clear")}</SoftButton>}
-    </form>
   );
 }

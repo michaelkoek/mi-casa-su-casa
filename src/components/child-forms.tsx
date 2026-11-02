@@ -117,8 +117,10 @@ const numText = (n: number) => String(n).replace(".", ",");
 export function TempForm({ item, onDone }: { item: Temperature | null; onDone: () => void }) {
   const t = useTranslations("child.tempForm");
   const { act } = useUI();
-  const [value, setValue] = useState(item ? numText(item.celsius) : "");
-  const [parts, setParts] = useState(() => toLocalDateTimeParts(item?.at ?? new Date().toISOString()));
+  // Patch only what changed since the form opened (snapshot), so the other member's concurrent edits to other fields survive.
+  const [original] = useState(item);
+  const [value, setValue] = useState(original ? numText(original.celsius) : "");
+  const [parts, setParts] = useState(() => toLocalDateTimeParts(original?.at ?? new Date().toISOString()));
   const [error, setError] = useState<string | null>(null);
   const [timeError, setTimeError] = useState<string | null>(null);
 
@@ -127,13 +129,18 @@ export function TempForm({ item, onDone }: { item: Temperature | null; onDone: (
     const c = parseFloat(value.replace(",", "."));
     if (!(c >= 34 && c <= 43)) return setError(t("error"));
     const submitNow = new Date();
-    const original = item ? toLocalDateTimeParts(item.at) : null;
-    const changed = !original || original.date !== parts.date || original.time !== parts.time;
-    const at = changed ? fromLocalDateTimeParts(parts.date, parts.time) : item!.at;
+    const origParts = original ? toLocalDateTimeParts(original.at) : null;
+    const changed = !origParts || origParts.date !== parts.date || origParts.time !== parts.time;
+    const at = changed ? fromLocalDateTimeParts(parts.date, parts.time) : original!.at;
     if (!at) return setTimeError(t("dateError"));
     if (new Date(at).getTime() > submitNow.getTime() + 60000) return setTimeError(t("futureError"));
     onDone();
-    if (item) act(t("updated"), updateTemperature(item.id, { celsius: c, ...(changed ? { at } : {}) }));
+    if (original) {
+      const patch: { celsius?: number; at?: string } = {};
+      if (c !== original.celsius) patch.celsius = c;
+      if (changed) patch.at = at;
+      if (Object.keys(patch).length > 0) act(t("updated"), updateTemperature(original.id, patch));
+    }
     else act(t("saved", { value: c.toLocaleString("nl-NL") }), addTemperature(c, new Date(at)));
   };
 
@@ -156,10 +163,11 @@ export function TempForm({ item, onDone }: { item: Temperature | null; onDone: (
 export function AppointmentForm({ item, onDone }: { item: Appointment | null; onDone: () => void }) {
   const t = useTranslations("child.appointmentForm");
   const { act } = useUI();
-  const [title, setTitle] = useState(item?.title ?? "");
+  const [original] = useState(item);
+  const [title, setTitle] = useState(original?.title ?? "");
   const [parts, setParts] = useState(() =>
-    item ? toLocalDateTimeParts(item.at) : { date: toDateKey(new Date(Date.now() + DAY)), time: "09:00" });
-  const [place, setPlace] = useState(item?.place ?? "");
+    original ? toLocalDateTimeParts(original.at) : { date: toDateKey(new Date(Date.now() + DAY)), time: "09:00" });
+  const [place, setPlace] = useState(original?.place ?? "");
   const [error, setError] = useState<string | null>(null);
   const [dateError, setDateError] = useState<string | null>(null);
 
@@ -169,7 +177,14 @@ export function AppointmentForm({ item, onDone }: { item: Appointment | null; on
     const at = fromLocalDateTimeParts(parts.date, parts.time);
     if (!at) return setDateError(t("dateError"));
     onDone();
-    if (item) act(t("updated"), updateAppointment(item.id, { title, at, place: place.trim() || null }));
+    if (original) {
+      const origParts = toLocalDateTimeParts(original.at);
+      const patch: { title?: string; at?: string; place?: string | null } = {};
+      if (title.trim() !== original.title) patch.title = title.trim();
+      if (origParts.date !== parts.date || origParts.time !== parts.time) patch.at = at;
+      if ((place.trim() || null) !== original.place) patch.place = place.trim() || null;
+      if (Object.keys(patch).length > 0) act(t("updated"), updateAppointment(original.id, patch));
+    }
     else act(t("saved"), addAppointment(title.trim(), at, place.trim() || null));
   };
 
@@ -193,8 +208,9 @@ export function AppointmentForm({ item, onDone }: { item: Appointment | null; on
 export function MilestoneForm({ item, onDone }: { item: Milestone | null; onDone: () => void }) {
   const t = useTranslations("child.milestoneForm");
   const { act } = useUI();
-  const [text, setText] = useState(item?.text ?? "");
-  const [date, setDate] = useState(item?.date ?? toDateKey(new Date()));
+  const [original] = useState(item);
+  const [text, setText] = useState(original?.text ?? "");
+  const [date, setDate] = useState(original?.date ?? toDateKey(new Date()));
   const [error, setError] = useState<string | null>(null);
   const [dateError, setDateError] = useState<string | null>(null);
 
@@ -203,7 +219,12 @@ export function MilestoneForm({ item, onDone }: { item: Milestone | null; onDone
     if (!text.trim()) return setError(t("error"));
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date > toDateKey(new Date())) return setDateError(t("dateError"));
     onDone();
-    if (item) act(t("updated"), updateMilestone(item.id, { text, date }));
+    if (original) {
+      const patch: { text?: string; date?: string } = {};
+      if (text.trim() !== original.text) patch.text = text.trim();
+      if (date !== original.date) patch.date = date;
+      if (Object.keys(patch).length > 0) act(t("updated"), updateMilestone(original.id, patch));
+    }
     else act(t("saved"), addMilestone(text.trim(), date));
   };
 
@@ -222,9 +243,10 @@ export function MilestoneForm({ item, onDone }: { item: Milestone | null; onDone
 export function GrowthForm({ item, onDone }: { item: GrowthEntry | null; onDone: () => void }) {
   const t = useTranslations("child.growthForm");
   const { act } = useUI();
-  const [weight, setWeight] = useState(item ? kgText(item.weightGrams) : "");
-  const [length, setLength] = useState(item ? numText(item.lengthCm) : "");
-  const [date, setDate] = useState(item?.date ?? toDateKey(new Date()));
+  const [original] = useState(item);
+  const [weight, setWeight] = useState(original ? kgText(original.weightGrams) : "");
+  const [length, setLength] = useState(original ? numText(original.lengthCm) : "");
+  const [date, setDate] = useState(original?.date ?? toDateKey(new Date()));
   const [error, setError] = useState<string | null>(null);
   const [dateError, setDateError] = useState<string | null>(null);
 
@@ -236,7 +258,13 @@ export function GrowthForm({ item, onDone }: { item: GrowthEntry | null; onDone:
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date > toDateKey(new Date())) return setDateError(t("dateError"));
     onDone();
     const grams = Math.round(kg * 1000);
-    if (item) act(t("updated"), updateGrowth(item.id, { weightGrams: grams, lengthCm: cm, date }));
+    if (original) {
+      const patch: { weightGrams?: number; lengthCm?: number; date?: string } = {};
+      if (grams !== original.weightGrams) patch.weightGrams = grams;
+      if (cm !== original.lengthCm) patch.lengthCm = cm;
+      if (date !== original.date) patch.date = date;
+      if (Object.keys(patch).length > 0) act(t("updated"), updateGrowth(original.id, patch));
+    }
     else act(t("saved"), addGrowth(grams, cm, date));
   };
 
@@ -261,15 +289,21 @@ export function FoodForm({ item, onDone }: { item: FoodTry | null; onDone: () =>
   const t = useTranslations("child.foodForm");
   const tv = useTranslations("child.verdict");
   const { act } = useUI();
-  const [name, setName] = useState(item?.name ?? "");
-  const [verdict, setVerdict] = useState<FoodVerdict>(item?.verdict ?? "unsure");
+  const [original] = useState(item);
+  const [name, setName] = useState(original?.name ?? "");
+  const [verdict, setVerdict] = useState<FoodVerdict>(original?.verdict ?? "unsure");
   const [error, setError] = useState<string | null>(null);
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return setError(t("error"));
     onDone();
-    if (item) act(t("updated", { name: name.trim() }), updateFood(item.id, { name, verdict }));
+    if (original) {
+      const patch: { name?: string; verdict?: FoodVerdict } = {};
+      if (name.trim() !== original.name) patch.name = name.trim();
+      if (verdict !== original.verdict) patch.verdict = verdict;
+      if (Object.keys(patch).length > 0) act(t("updated", { name: name.trim() }), updateFood(original.id, patch));
+    }
     else act(t("saved"), addFood(name.trim(), toDateKey(new Date()), verdict));
   };
 
@@ -288,8 +322,9 @@ export function FoodForm({ item, onDone }: { item: FoodTry | null; onDone: () =>
 export function RoutineForm({ item, onDone }: { item: RoutineItem | null; onDone: () => void }) {
   const t = useTranslations("child.routineForm");
   const { act } = useUI();
-  const [time, setTime] = useState(item?.time ?? "12:00");
-  const [label, setLabel] = useState(item?.label ?? "");
+  const [original] = useState(item);
+  const [time, setTime] = useState(original?.time ?? "12:00");
+  const [label, setLabel] = useState(original?.label ?? "");
   const [timeError, setTimeError] = useState<string | null>(null);
   const [labelError, setLabelError] = useState<string | null>(null);
 
@@ -298,7 +333,12 @@ export function RoutineForm({ item, onDone }: { item: RoutineItem | null; onDone
     if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) return setTimeError(t("timeError"));
     if (!label.trim()) return setLabelError(t("labelError"));
     onDone();
-    if (item) act(t("updated", { label: label.trim() }), updateRoutine(item.id, { time, label }));
+    if (original) {
+      const patch: { time?: string; label?: string } = {};
+      if (time !== original.time) patch.time = time;
+      if (label.trim() !== original.label) patch.label = label.trim();
+      if (Object.keys(patch).length > 0) act(t("updated", { label: label.trim() }), updateRoutine(original.id, patch));
+    }
     else act(t("added", { label: label.trim(), time }), addRoutine({ time, label }));
   };
 
@@ -317,9 +357,10 @@ export function RoutineForm({ item, onDone }: { item: RoutineItem | null; onDone
 export function SizeForm({ item, onDone }: { item: ClothingSize | null; onDone: () => void }) {
   const t = useTranslations("child.sizeForm");
   const { act } = useUI();
-  const [label, setLabel] = useState(item?.label ?? "");
-  const [size, setSize] = useState(item?.size ?? "");
-  const [note, setNote] = useState(item?.note ?? "");
+  const [original] = useState(item);
+  const [label, setLabel] = useState(original?.label ?? "");
+  const [size, setSize] = useState(original?.size ?? "");
+  const [note, setNote] = useState(original?.note ?? "");
   const [labelError, setLabelError] = useState<string | null>(null);
   const [sizeError, setSizeError] = useState<string | null>(null);
 
@@ -328,9 +369,13 @@ export function SizeForm({ item, onDone }: { item: ClothingSize | null; onDone: 
     if (!label.trim()) return setLabelError(t("labelError"));
     if (!size.trim()) return setSizeError(t("sizeError"));
     onDone();
-    const input = { label, size, note: note.trim() || null };
-    if (item) act(t("saved", { label: label.trim(), size: size.trim() }), updateSize(item.id, input));
-    else act(t("added", { label: label.trim() }), addSize(input));
+    if (original) {
+      const patch: { label?: string; size?: string; note?: string | null } = {};
+      if (label.trim() !== original.label) patch.label = label.trim();
+      if (size.trim() !== original.size) patch.size = size.trim();
+      if ((note.trim() || null) !== original.note) patch.note = note.trim() || null;
+      if (Object.keys(patch).length > 0) act(t("saved", { label: label.trim(), size: size.trim() }), updateSize(original.id, patch));
+    } else act(t("added", { label: label.trim() }), addSize({ label, size, note: note.trim() || null }));
   };
 
   return (
@@ -349,14 +394,17 @@ export function SizeForm({ item, onDone }: { item: ClothingSize | null; onDone: 
 export function StockForm({ item, onDone }: { item: StockItem | null; onDone: () => void }) {
   const t = useTranslations("child.stockForm");
   const { act } = useUI();
-  const [name, setName] = useState(item?.name ?? "");
+  const [original] = useState(item);
+  const [name, setName] = useState(original?.name ?? "");
   const [error, setError] = useState<string | null>(null);
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return setError(t("error"));
     onDone();
-    if (item) act(t("updated", { name: name.trim() }), renameStock(item.id, name));
+    if (original) {
+      if (name.trim() !== original.name) act(t("updated", { name: name.trim() }), renameStock(original.id, name));
+    }
     else act(t("added", { name: name.trim() }), addStock(name));
   };
 

@@ -10,6 +10,11 @@ describe("proxy matcher", () => {
     expect(isProtected("/api/bank/callback")).toBe(false);
     expect(isProtected("/bank-klaar")).toBe(false);
   });
+  it("leaves the Hue callback and result page public, but not the lights screen", () => {
+    expect(isProtected("/api/lights/hue/callback")).toBe(false);
+    expect(isProtected("/lampen-klaar")).toBe(false);
+    expect(isProtected("/huis/lampen")).toBe(true);
+  });
   it("keeps the other public paths public", () => {
     for (const p of ["/login", "/api/auth/sign-in", "/api/cron/bank", "/_next/static/a.js", "/manifest.webmanifest"])
       expect(isProtected(p)).toBe(false);
