@@ -23,6 +23,9 @@ import {
   addCategory,
   toggleSignal,
   toggleTask,
+  addDose, updateDose, removeDose, addTemperature, updateTemperature, removeTemperature, updateAppointment,
+  updateMilestone, removeMilestone, updateGrowth, removeGrowth, updateFood, removeFood, addRoutine, updateRoutine,
+  removeRoutine, addMedicine, updateMedicine, removeMedicine, addSize, updateSize, removeSize, addStock, renameStock, removeStock,
 } from "./actions";
 import { createSeed } from "./seed";
 
@@ -273,5 +276,116 @@ describe("signal limits", () => {
     const mk = (n: number) => ({ ...s, signals: Array.from({ length: n }, (_, i) => ({ id: `f${i}`, label: "x", icon: "trash" as const, openedBy: null, openedAt: null })) });
     expect(addSignal({ label: "Y", icon: "coffee" }, "n")(mk(11)).signals).toHaveLength(12);
     expect(addSignal({ label: "Y", icon: "coffee" }, "n")(mk(12)).signals).toHaveLength(12);
+  });
+});
+
+describe("child updaters", () => {
+  const s = createSeed(new Date("2026-10-28T10:00:00Z"));
+
+  it("updateDose patches only the target, never `by`, and validates", () => {
+    const withTwo = addDose("ibu", "5 ml", "m1", new Date("2026-10-28T09:00:00Z"))(s);
+    const other = withTwo.doses[1];
+    const next = updateDose("d1", { amount: "  240 mg ", at: "2026-10-28T08:00:00Z", medicineId: "ibu" })(withTwo);
+    expect(next.doses[0]).toEqual({ id: "d1", medicineId: "ibu", amount: "240 mg", at: "2026-10-28T08:00:00.000Z", by: "m2" });
+    expect(next.doses[1]).toBe(other);
+    expect(updateDose("d1", { medicineId: "nope" })(s)).toBe(s);
+    expect(updateDose("d1", { at: "garbage" })(s)).toBe(s);
+    expect(updateDose("nope", { amount: "x" })(s)).toEqual(s);
+  });
+  it("removeDose and removeTemperature filter only their own array", () => {
+    expect(removeDose("d1")(s).doses).toHaveLength(0);
+    expect(removeTemperature("tp1")(s).temperatures).toHaveLength(0);
+    expect(removeDose("nope")(s)).toEqual(s);
+  });
+  it("addTemperature and updateTemperature", () => {
+    expect(addTemperature(38, new Date("2026-10-28T09:00:00Z"))(s).temperatures.at(-1)?.at).toBe("2026-10-28T09:00:00.000Z");
+    expect(updateTemperature("tp1", { celsius: 39.2, at: "2026-10-28T07:00:00Z" })(s).temperatures[0]).toEqual({ id: "tp1", celsius: 39.2, at: "2026-10-28T07:00:00.000Z" });
+    for (const c of [29.9, 45.1, NaN]) expect(updateTemperature("tp1", { celsius: c })(s)).toBe(s);
+    expect(updateTemperature("tp1", { at: "x" })(s)).toBe(s);
+    expect(updateTemperature("nope", { celsius: 38 })(s)).toEqual(s);
+  });
+  it("updateAppointment patches, sorts by at and validates", () => {
+    const next = updateAppointment("a1", { at: "2099-01-01T10:00:00Z", place: "  " })(s);
+    expect(next.appointments.map((a) => a.id)).toEqual(["a2", "a1"]);
+    expect(next.appointments[1].place).toBeNull();
+    expect(updateAppointment("a1", { title: "  " })(s)).toBe(s);
+    expect(updateAppointment("a1", { at: "x" })(s)).toBe(s);
+    expect(updateAppointment("a1", { title: "x".repeat(200) })(s).appointments[0].title).toHaveLength(100);
+    expect(updateAppointment("nope", { title: "x" })(s)).toEqual(s);
+  });
+  it("updateMilestone and removeMilestone", () => {
+    const next = updateMilestone("ms1", { text: " Loopt ", date: "2026-10-01" })(s);
+    expect(next.milestones[0]).toEqual({ id: "ms1", text: "Loopt", date: "2026-10-01" });
+    expect(next.milestones[1]).toBe(s.milestones[1]);
+    expect(updateMilestone("ms1", { text: " " })(s)).toBe(s);
+    expect(updateMilestone("ms1", { date: "1-2-3" })(s)).toBe(s);
+    expect(updateMilestone("nope", { text: "x" })(s)).toEqual(s);
+    expect(removeMilestone("ms1")(s).milestones.map((m) => m.id)).toEqual(["ms2"]);
+  });
+  it("updateGrowth keeps growth sorted and validates", () => {
+    const next = updateGrowth("g1", { date: "2026-10-27", weightGrams: 9900, lengthCm: 78 })(s);
+    expect(next.growth.map((g) => g.id)).toEqual(["g2", "g1"]);
+    expect(next.growth[1]).toEqual({ id: "g1", date: "2026-10-27", weightGrams: 9900, lengthCm: 78 });
+    expect(updateGrowth("g1", { weightGrams: 9.5 })(s)).toBe(s);
+    expect(updateGrowth("g1", { weightGrams: 200001 })(s)).toBe(s);
+    expect(updateGrowth("g1", { lengthCm: 251 })(s)).toBe(s);
+    expect(updateGrowth("g1", { date: "nope" })(s)).toBe(s);
+    expect(updateGrowth("nope", { lengthCm: 70 })(s)).toEqual(s);
+    expect(removeGrowth("g1")(s).growth.map((g) => g.id)).toEqual(["g2"]);
+  });
+  it("updateFood and removeFood", () => {
+    const next = updateFood("f1", { name: " Peer ", verdict: "dislikes" })(s);
+    expect(next.foods[0]).toMatchObject({ id: "f1", name: "Peer", verdict: "dislikes" });
+    expect(next.foods[1]).toBe(s.foods[1]);
+    expect(updateFood("f1", { name: "" })(s)).toBe(s);
+    expect(updateFood("nope", { name: "x" })(s)).toEqual(s);
+    expect(removeFood("f1")(s).foods).toHaveLength(2);
+  });
+  it("routine stays sorted by time (stable) and validates", () => {
+    const added = addRoutine({ time: "10:00", label: "Fruit" }, "rt9")(s);
+    expect(added.routine.map((r) => r.id)).toEqual(["rt1", "rt9", "rt2", "rt3", "rt4", "rt5"]);
+    expect(addRoutine({ time: "12:00", label: "Soep" }, "rt8")(s).routine.map((r) => r.id)).toEqual(["rt1", "rt2", "rt8", "rt3", "rt4", "rt5"]);
+    expect(addRoutine({ time: "25:00", label: "x" })(s)).toBe(s);
+    expect(addRoutine({ time: "10:00", label: " " })(s)).toBe(s);
+    const moved = updateRoutine("rt5", { time: "08:00", label: "Wakker" })(s);
+    expect(moved.routine[0]).toEqual({ id: "rt5", time: "08:00", label: "Wakker" });
+    expect(updateRoutine("rt5", { time: "8:00" })(s)).toBe(s);
+    expect(updateRoutine("rt5", { label: "" })(s)).toBe(s);
+    expect(updateRoutine("nope", { label: "x" })(s)).toEqual(s);
+    expect(removeRoutine("rt1")(s).routine).toHaveLength(4);
+  });
+  it("medicines: add, update, validate, and remove drops only its doses", () => {
+    expect(addMedicine({ name: "Vitamine D", intervalHours: 24 }, "md9")(s).medicines.at(-1)).toEqual({ id: "md9", name: "Vitamine D", intervalHours: 24 });
+    expect(addMedicine({ name: " ", intervalHours: 6 })(s)).toBe(s);
+    for (const h of [0, 73, 1.5]) expect(addMedicine({ name: "x", intervalHours: h })(s)).toBe(s);
+    expect(updateMedicine("para", { name: " Dafalgan ", intervalHours: 4 })(s).medicines[0]).toEqual({ id: "para", name: "Dafalgan", intervalHours: 4 });
+    expect(updateMedicine("para", { intervalHours: 100 })(s)).toBe(s);
+    expect(updateMedicine("para", { name: "" })(s)).toBe(s);
+    expect(updateMedicine("nope", { name: "x" })(s)).toEqual(s);
+    const withIbu = addDose("ibu", "x", "m1", new Date())(s);
+    const next = removeMedicine("para")(withIbu);
+    expect(next.medicines.map((m) => m.id)).toEqual(["ibu"]);
+    expect(next.doses.map((d) => d.medicineId)).toEqual(["ibu"]);
+  });
+  it("sizes: add, update (note empty -> null), remove", () => {
+    expect(addSize({ label: " Muts ", size: "48", note: "" }, "z9")(s).sizes.at(-1)).toEqual({ id: "z9", label: "Muts", size: "48", note: null });
+    expect(addSize({ label: "", size: "48", note: null })(s)).toBe(s);
+    const next = updateSize("z1", { size: " 92 ", note: "" })(s);
+    expect(next.sizes[0]).toEqual({ id: "z1", label: "Kleding", size: "92", note: null });
+    expect(next.sizes[1]).toBe(s.sizes[1]);
+    expect(updateSize("z1", { size: " " })(s)).toBe(s);
+    expect(updateSize("z1", { label: "" })(s)).toBe(s);
+    expect(updateSize("nope", { size: "1" })(s)).toEqual(s);
+    expect(removeSize("z1")(s).sizes).toHaveLength(3);
+  });
+  it("stock: add at full, rename, remove", () => {
+    expect(addStock(" Zeep ", "st9")(s).stock.at(-1)).toEqual({ id: "st9", name: "Zeep", level: "full" });
+    expect(addStock(" ")(s)).toBe(s);
+    const next = renameStock("st1", " Luiers 5 ")(s);
+    expect(next.stock[0]).toEqual({ id: "st1", name: "Luiers 5", level: "low" });
+    expect(next.stock[1]).toBe(s.stock[1]);
+    expect(renameStock("st1", "")(s)).toBe(s);
+    expect(renameStock("nope", "x")(s)).toEqual(s);
+    expect(removeStock("st1")(s).stock).toHaveLength(3);
   });
 });

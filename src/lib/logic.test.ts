@@ -16,11 +16,17 @@ import {
   missingIngredients,
   nextAssignee,
   nextDoseAllowedAt,
+  toLocalDateTimeParts,
+  fromLocalDateTimeParts,
+  doseTooEarly,
+  lastDoseAmount,
+  parseIntervalHours,
   normalizeItem,
   parseEuroToCents,
   parseIngredients,
   suggestMeals,
 } from "./logic";
+import { updateDose } from "./actions";
 import { createSeed } from "./seed";
 import type { Recipe, ShoppingItem } from "./types";
 import type { Category, Chore, Dose, Medicine, Transaction } from "./types";
@@ -277,5 +283,82 @@ describe("signal labels", () => {
     expect(canAddSignal(mk(11))).toBe(true);
     expect(canAddSignal(mk(12))).toBe(false);
     expect(canAddSignal([])).toBe(true);
+  });
+});
+
+describe("local date/time parts", () => {
+  it("round-trips a local moment", () => {
+    const d = new Date(2026, 9, 24, 9, 5);
+    const parts = toLocalDateTimeParts(d.toISOString());
+    expect(parts).toEqual({ date: "2026-10-24", time: "09:05" });
+    expect(fromLocalDateTimeParts(parts.date, parts.time)).toBe(d.toISOString());
+  });
+  it("returns null for invalid input", () => {
+    for (const [date, time] of [["", "09:00"], ["2026-02-30", "09:00"], ["2026-10-24", "24:00"], ["2026-10-24", "9:00"], ["2026-1-5", "09:00"], ["2026-10-24", ""]]) {
+      expect(fromLocalDateTimeParts(date, time), `${date} ${time}`).toBeNull();
+    }
+  });
+  it("drops seconds", () => {
+    expect(fromLocalDateTimeParts("2026-10-24", "09:05:30")).toBe(new Date(2026, 9, 24, 9, 5).toISOString());
+  });
+});
+
+describe("doseTooEarly", () => {
+  const med: Medicine = { id: "para", name: "Paracetamol", intervalHours: 6 };
+  const other: Medicine = { id: "ibu", name: "Ibuprofen", intervalHours: 8 };
+  const dose = (id: string, medicineId: string, at: Date): Dose => ({ id, medicineId, amount: "", at: at.toISOString(), by: "m1" });
+  const base = new Date(2026, 9, 24, 8, 0);
+  const at = (h: number, m = 0) => new Date(2026, 9, 24, h, m);
+
+  it("is null without an earlier dose", () => {
+    expect(doseTooEarly([], med, at(9))).toBeNull();
+    expect(doseTooEarly([dose("a", "para", at(12))], med, at(9))).toBeNull();
+  });
+  it("returns the earliest allowed moment inside the interval", () => {
+    expect(doseTooEarly([dose("a", "para", base)], med, at(10))?.toISOString()).toBe(at(14).toISOString());
+  });
+  it("is null once the interval has passed", () => {
+    expect(doseTooEarly([dose("a", "para", base)], med, at(14))).toBeNull();
+  });
+  it("ignores excludeId and other medicines", () => {
+    expect(doseTooEarly([dose("a", "para", base)], med, at(10), "a")).toBeNull();
+    expect(doseTooEarly([dose("a", "ibu", base)], med, at(10))).toBeNull();
+    expect(doseTooEarly([dose("a", "ibu", base)], other, at(10))?.toISOString()).toBe(at(16).toISOString());
+  });
+  it("warns for a dose given seconds after the minute-floored check time", () => {
+    const seconds = new Date(2026, 9, 24, 14, 3, 40);
+    expect(doseTooEarly([dose("a", "para", seconds)], med, new Date(2026, 9, 24, 14, 3))).not.toBeNull();
+  });
+});
+
+describe("lastDoseAmount", () => {
+  const d = (id: string, medicineId: string, amount: string, h: number): Dose => ({
+    id, medicineId, amount, at: new Date(2026, 9, 24, h).toISOString(), by: "m1",
+  });
+  it("picks the latest by time, not array order", () => {
+    expect(lastDoseAmount([d("a", "para", "5 ml", 12), d("b", "para", "2,5 ml", 8), d("c", "ibu", "x", 15)], "para")).toBe("5 ml");
+  });
+  it("is empty without doses", () => {
+    expect(lastDoseAmount([], "para")).toBe("");
+  });
+});
+
+describe("parseIntervalHours", () => {
+  it("parses whole hours from 1 to 72", () => {
+    expect(parseIntervalHours("6")).toBe(6);
+    expect(parseIntervalHours(" 8 ")).toBe(8);
+    for (const bad of ["0", "73", "1.5", "x", ""]) expect(parseIntervalHours(bad), bad).toBeNull();
+  });
+});
+
+describe("nextDoseAllowedAt after updateDose", () => {
+  it("moves with the edited dose", () => {
+    const s = createSeed(new Date("2026-10-24T14:00:00Z"));
+    const med = s.medicines.find((m) => m.id === "para")!;
+    const before = nextDoseAllowedAt(s.doses, med)!;
+    const dose = s.doses.find((d) => d.medicineId === "para")!;
+    const moved = new Date(new Date(dose.at).getTime() - 2 * 3600000).toISOString();
+    const next = updateDose(dose.id, { at: moved })(s);
+    expect(nextDoseAllowedAt(next.doses, med)!.getTime()).toBe(before.getTime() - 2 * 3600000);
   });
 });

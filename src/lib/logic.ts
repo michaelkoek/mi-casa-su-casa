@@ -70,6 +70,48 @@ export function parseIntervalDays(input: string): number | null {
   return n >= 1 && n <= 365 ? n : null;
 }
 
+/** Local "YYYY-MM-DD" (toDateKey) and "HH:MM" (24 h, zero-padded) of an ISO moment. */
+export function toLocalDateTimeParts(iso: string): { date: string; time: string } {
+  const d = new Date(iso);
+  return { date: toDateKey(d), time: `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}` };
+}
+
+/** Local date + time to an ISO string. Null on a malformed or non-existing date or time (seconds are dropped). */
+export function fromLocalDateTimeParts(date: string, time: string): string | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
+  if (!/^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/.test(time)) return null;
+  const d = new Date(`${date}T${time.slice(0, 5)}:00`);
+  if (Number.isNaN(d.getTime()) || toDateKey(d) !== date) return null;
+  return d.toISOString();
+}
+
+/**
+ * Too-early check for a dose of `medicine` given at `at`. Looks at the latest other dose of the same medicine up to
+ * the end of the minute of `at` (doses are minute-floored, so one given seconds later still counts). Returns the earliest allowed moment when `at` is before it, else null.
+ */
+export function doseTooEarly(doses: Dose[], medicine: Medicine, at: Date, excludeId?: string): Date | null {
+  const earlier = doses.filter((d) => d.id !== excludeId && new Date(d.at).getTime() < at.getTime() + 60_000);
+  const next = nextDoseAllowedAt(earlier, medicine);
+  return next !== null && next.getTime() > at.getTime() ? next : null;
+}
+
+/** Amount of the most recent dose (by time, not array order) of a medicine, or "" when there is none. */
+export function lastDoseAmount(doses: Dose[], medicineId: string): string {
+  let best: Dose | null = null;
+  for (const d of doses) {
+    if (d.medicineId === medicineId && (!best || new Date(d.at).getTime() > new Date(best.at).getTime())) best = d;
+  }
+  return best?.amount ?? "";
+}
+
+/** "6" -> 6. Null unless the trimmed input is only digits and the integer is 1..72 (same bound as the sync schema). */
+export function parseIntervalHours(input: string): number | null {
+  const v = input.trim();
+  if (!/^\d+$/.test(v)) return null;
+  const n = Number(v);
+  return n >= 1 && n <= 72 ? n : null;
+}
+
 /** First rule whose text occurs in the counterparty, or else in the payment details, decides the category. */
 export function categorize(
   tx: { counterparty: string; description?: string | null },

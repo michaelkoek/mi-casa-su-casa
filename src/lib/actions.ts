@@ -137,20 +137,87 @@ export const addCategory = (name: string, budgetCents: number | null) => (s: S):
   categories: [...s.categories, { id: uid("k"), name, budgetCents }],
 });
 
-export const addDose = (medicineId: string, amount: string, by: MemberId, now: Date) => (s: S): S => ({
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+/** Trims, then cuts to `max` characters. */
+const cleanText = (v: string, max: number): string => v.trim().slice(0, max);
+/** ISO input normalised, or null when it is not a moment. */
+const isoOrNull = (v: string): string | null => {
+  const d = new Date(v);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+};
+
+export const addDose = (medicineId: string, amount: string, by: MemberId, at: Date) => (s: S): S => ({
   ...s,
-  doses: [...s.doses, { id: uid("d"), medicineId, amount, at: now.toISOString(), by }],
+  doses: [...s.doses, { id: uid("d"), medicineId, amount, at: at.toISOString(), by }],
 });
 
-export const addTemperature = (celsius: number, now: Date) => (s: S): S => ({
+/** Patches medicine, amount and time of a dose; `by` never changes. An unknown medicine or invalid time leaves the state unchanged. */
+export const updateDose = (id: string, patch: Partial<{ medicineId: string; amount: string; at: string }>) => (s: S): S => {
+  const next: Partial<{ medicineId: string; amount: string; at: string }> = {};
+  if (patch.medicineId !== undefined) {
+    if (!s.medicines.some((m) => m.id === patch.medicineId)) return s;
+    next.medicineId = patch.medicineId;
+  }
+  if (patch.amount !== undefined) next.amount = cleanText(patch.amount, 200);
+  if (patch.at !== undefined) {
+    const at = isoOrNull(patch.at);
+    if (!at) return s;
+    next.at = at;
+  }
+  return { ...s, doses: s.doses.map((d) => (d.id === id ? { ...d, ...next } : d)) };
+};
+
+export const removeDose = (id: string) => (s: S): S => ({ ...s, doses: s.doses.filter((d) => d.id !== id) });
+
+export const addTemperature = (celsius: number, at: Date) => (s: S): S => ({
   ...s,
-  temperatures: [...s.temperatures, { id: uid("tp"), celsius, at: now.toISOString() }],
+  temperatures: [...s.temperatures, { id: uid("tp"), celsius, at: at.toISOString() }],
+});
+
+export const updateTemperature = (id: string, patch: Partial<{ celsius: number; at: string }>) => (s: S): S => {
+  const next: Partial<{ celsius: number; at: string }> = {};
+  if (patch.celsius !== undefined) {
+    if (!Number.isFinite(patch.celsius) || patch.celsius < 30 || patch.celsius > 45) return s;
+    next.celsius = patch.celsius;
+  }
+  if (patch.at !== undefined) {
+    const at = isoOrNull(patch.at);
+    if (!at) return s;
+    next.at = at;
+  }
+  return { ...s, temperatures: s.temperatures.map((x) => (x.id === id ? { ...x, ...next } : x)) };
+};
+
+export const removeTemperature = (id: string) => (s: S): S => ({
+  ...s,
+  temperatures: s.temperatures.filter((x) => x.id !== id),
 });
 
 export const addAppointment = (title: string, at: string, place: string | null) => (s: S): S => ({
   ...s,
   appointments: [...s.appointments, { id: uid("a"), title, at, place }].sort((a, b) => a.at.localeCompare(b.at)),
 });
+
+export const updateAppointment = (id: string, patch: Partial<{ title: string; at: string; place: string | null }>) => (s: S): S => {
+  const next: Partial<{ title: string; at: string; place: string | null }> = {};
+  if (patch.title !== undefined) {
+    const title = cleanText(patch.title, 100);
+    if (!title) return s;
+    next.title = title;
+  }
+  if (patch.at !== undefined) {
+    const at = isoOrNull(patch.at);
+    if (!at) return s;
+    next.at = at;
+  }
+  if (patch.place !== undefined) next.place = patch.place === null ? null : cleanText(patch.place, 200) || null;
+  return {
+    ...s,
+    appointments: s.appointments.map((a) => (a.id === id ? { ...a, ...next } : a)).sort((a, b) => a.at.localeCompare(b.at)),
+  };
+};
 
 export const removeAppointment = (id: string) => (s: S): S => ({
   ...s,
@@ -255,6 +322,22 @@ export const addMilestone = (text: string, date: string) => (s: S): S => ({
   milestones: [{ id: uid("ms"), date, text }, ...s.milestones],
 });
 
+export const updateMilestone = (id: string, patch: Partial<{ text: string; date: string }>) => (s: S): S => {
+  const next: Partial<{ text: string; date: string }> = {};
+  if (patch.text !== undefined) {
+    const text = cleanText(patch.text, 500);
+    if (!text) return s;
+    next.text = text;
+  }
+  if (patch.date !== undefined) {
+    if (!DATE_RE.test(patch.date)) return s;
+    next.date = patch.date;
+  }
+  return { ...s, milestones: s.milestones.map((m) => (m.id === id ? { ...m, ...next } : m)) };
+};
+
+export const removeMilestone = (id: string) => (s: S): S => ({ ...s, milestones: s.milestones.filter((m) => m.id !== id) });
+
 /** "Ik haal op": set who brings or picks up on a weekday (the day is no longer a home day). */
 export const claimCare = (weekday: CareDay["weekday"], field: "bring" | "pick", who: CareSlot) => (s: S): S => ({
   ...s,
@@ -270,10 +353,48 @@ export const setHomeDay = (weekday: CareDay["weekday"], atHome: boolean) => (s: 
   care: s.care.map((d) => (d.weekday === weekday ? { ...d, atHome } : d)),
 });
 
-export const setSize = (id: string, size: string, note: string | null) => (s: S): S => ({
-  ...s,
-  sizes: s.sizes.map((z) => (z.id === id ? { ...z, size, note } : z)),
-});
+type SizeInput = { label: string; size: string; note: string | null };
+
+export const addSize = (input: SizeInput, newId = uid("z")) => (s: S): S => {
+  const label = cleanText(input.label, 100);
+  const size = cleanText(input.size, 40);
+  if (!label || !size) return s;
+  const note = input.note === null ? null : cleanText(input.note, 200) || null;
+  return { ...s, sizes: [...s.sizes, { id: newId, label, size, note }] };
+};
+
+export const updateSize = (id: string, patch: Partial<SizeInput>) => (s: S): S => {
+  const next: Partial<SizeInput> = {};
+  if (patch.label !== undefined) {
+    const label = cleanText(patch.label, 100);
+    if (!label) return s;
+    next.label = label;
+  }
+  if (patch.size !== undefined) {
+    const size = cleanText(patch.size, 40);
+    if (!size) return s;
+    next.size = size;
+  }
+  if (patch.note !== undefined) next.note = patch.note === null ? null : cleanText(patch.note, 200) || null;
+  return { ...s, sizes: s.sizes.map((z) => (z.id === id ? { ...z, ...next } : z)) };
+};
+
+export const removeSize = (id: string) => (s: S): S => ({ ...s, sizes: s.sizes.filter((z) => z.id !== id) });
+
+/** Appends a stock item at level "full". Empty name leaves the state unchanged. */
+export const addStock = (name: string, newId = uid("st")) => (s: S): S => {
+  const clean = cleanText(name, 100);
+  if (!clean) return s;
+  return { ...s, stock: [...s.stock, { id: newId, name: clean, level: "full" }] };
+};
+
+export const renameStock = (id: string, name: string) => (s: S): S => {
+  const clean = cleanText(name, 100);
+  if (!clean) return s;
+  return { ...s, stock: s.stock.map((x) => (x.id === id ? { ...x, name: clean } : x)) };
+};
+
+export const removeStock = (id: string) => (s: S): S => ({ ...s, stock: s.stock.filter((x) => x.id !== id) });
 
 const NEXT_LEVEL: Record<StockLevel, StockLevel> = { full: "half", half: "low", low: "full" };
 
@@ -291,6 +412,25 @@ export const addGrowth = (weightGrams: number, lengthCm: number, date: string) =
   growth: [...s.growth, { id: uid("g"), date, weightGrams, lengthCm }].sort((a, b) => a.date.localeCompare(b.date)),
 });
 
+export const updateGrowth = (id: string, patch: Partial<{ weightGrams: number; lengthCm: number; date: string }>) => (s: S): S => {
+  const next: Partial<{ weightGrams: number; lengthCm: number; date: string }> = {};
+  if (patch.weightGrams !== undefined) {
+    if (!Number.isInteger(patch.weightGrams) || patch.weightGrams < 0 || patch.weightGrams > 200000) return s;
+    next.weightGrams = patch.weightGrams;
+  }
+  if (patch.lengthCm !== undefined) {
+    if (!Number.isFinite(patch.lengthCm) || patch.lengthCm < 0 || patch.lengthCm > 250) return s;
+    next.lengthCm = patch.lengthCm;
+  }
+  if (patch.date !== undefined) {
+    if (!DATE_RE.test(patch.date)) return s;
+    next.date = patch.date;
+  }
+  return { ...s, growth: s.growth.map((g) => (g.id === id ? { ...g, ...next } : g)).sort((a, b) => a.date.localeCompare(b.date)) };
+};
+
+export const removeGrowth = (id: string) => (s: S): S => ({ ...s, growth: s.growth.filter((g) => g.id !== id) });
+
 export const addFood = (name: string, date: string, verdict: FoodVerdict) => (s: S): S => ({
   ...s,
   foods: [{ id: uid("f"), name, date, verdict }, ...s.foods],
@@ -300,6 +440,76 @@ const NEXT_VERDICT: Record<FoodVerdict, FoodVerdict> = { unsure: "likes", likes:
 export const cycleFood = (id: string) => (s: S): S => ({
   ...s,
   foods: s.foods.map((f) => (f.id === id ? { ...f, verdict: NEXT_VERDICT[f.verdict] } : f)),
+});
+
+export const updateFood = (id: string, patch: Partial<{ name: string; verdict: FoodVerdict }>) => (s: S): S => {
+  const next: Partial<{ name: string; verdict: FoodVerdict }> = {};
+  if (patch.name !== undefined) {
+    const name = cleanText(patch.name, 100);
+    if (!name) return s;
+    next.name = name;
+  }
+  if (patch.verdict !== undefined) next.verdict = patch.verdict;
+  return { ...s, foods: s.foods.map((f) => (f.id === id ? { ...f, ...next } : f)) };
+};
+
+export const removeFood = (id: string) => (s: S): S => ({ ...s, foods: s.foods.filter((f) => f.id !== id) });
+
+type RoutineInput = { time: string; label: string };
+
+const byTime = <T extends { time: string }>(list: T[]): T[] => [...list].sort((a, b) => a.time.localeCompare(b.time));
+
+export const addRoutine = (input: RoutineInput, newId = uid("rt")) => (s: S): S => {
+  const label = cleanText(input.label, 100);
+  if (!label || !TIME_RE.test(input.time)) return s;
+  return { ...s, routine: byTime([...s.routine, { id: newId, time: input.time, label }]) };
+};
+
+export const updateRoutine = (id: string, patch: Partial<RoutineInput>) => (s: S): S => {
+  const next: Partial<RoutineInput> = {};
+  if (patch.time !== undefined) {
+    if (!TIME_RE.test(patch.time)) return s;
+    next.time = patch.time;
+  }
+  if (patch.label !== undefined) {
+    const label = cleanText(patch.label, 100);
+    if (!label) return s;
+    next.label = label;
+  }
+  return { ...s, routine: byTime(s.routine.map((r) => (r.id === id ? { ...r, ...next } : r))) };
+};
+
+export const removeRoutine = (id: string) => (s: S): S => ({ ...s, routine: s.routine.filter((r) => r.id !== id) });
+
+type MedicineInput = { name: string; intervalHours: number };
+
+const validHours = (n: number) => Number.isInteger(n) && n >= 1 && n <= 72;
+
+export const addMedicine = (input: MedicineInput, newId = uid("md")) => (s: S): S => {
+  const name = cleanText(input.name, 100);
+  if (!name || !validHours(input.intervalHours)) return s;
+  return { ...s, medicines: [...s.medicines, { id: newId, name, intervalHours: input.intervalHours }] };
+};
+
+export const updateMedicine = (id: string, patch: Partial<MedicineInput>) => (s: S): S => {
+  const next: Partial<MedicineInput> = {};
+  if (patch.name !== undefined) {
+    const name = cleanText(patch.name, 100);
+    if (!name) return s;
+    next.name = name;
+  }
+  if (patch.intervalHours !== undefined) {
+    if (!validHours(patch.intervalHours)) return s;
+    next.intervalHours = patch.intervalHours;
+  }
+  return { ...s, medicines: s.medicines.map((m) => (m.id === id ? { ...m, ...next } : m)) };
+};
+
+/** Removes the medicine and every dose of it in one updater, so one undo restores both. */
+export const removeMedicine = (id: string) => (s: S): S => ({
+  ...s,
+  medicines: s.medicines.filter((m) => m.id !== id),
+  doses: s.doses.filter((d) => d.medicineId !== id),
 });
 
 type SignalInput = { label: string; icon: SignalIcon };

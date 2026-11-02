@@ -51,7 +51,30 @@ describe("parseChangeset", () => {
     addMilestone: actions.addMilestone("Eerste woordje", "2026-10-20"),
     addGrowth: actions.addGrowth(10000, 78, "2026-10-01"),
     cycleStock: actions.cycleStock("st3"),
-    setSize: actions.setSize("z1", "92", null),
+    updateSize: actions.updateSize("z1", { size: "92", note: null }),
+    addSize: actions.addSize({ label: "Muts", size: "48", note: null }),
+    removeSize: actions.removeSize("z2"),
+    addStock: actions.addStock("Zeep"),
+    renameStock: actions.renameStock("st1", "Luiers maat 5"),
+    removeStock: actions.removeStock("st2"),
+    updateDose: actions.updateDose("d1", { medicineId: "ibu", amount: "5 ml", at: "2026-10-24T10:00:00.000Z" }),
+    removeDose: actions.removeDose("d1"),
+    addTemperature: actions.addTemperature(38.5, now),
+    updateTemperature: actions.updateTemperature("tp1", { celsius: 39, at: "2026-10-24T10:00:00.000Z" }),
+    removeTemperature: actions.removeTemperature("tp1"),
+    updateAppointment: actions.updateAppointment("a1", { title: "Tandarts", at: "2026-10-26T08:00:00.000Z", place: null }),
+    updateMilestone: actions.updateMilestone("ms1", { text: "Loopt", date: "2026-10-01" }),
+    removeMilestone: actions.removeMilestone("ms1"),
+    updateGrowth: actions.updateGrowth("g1", { weightGrams: 9300, lengthCm: 75, date: "2026-10-27" }),
+    removeGrowth: actions.removeGrowth("g1"),
+    updateFood: actions.updateFood("f1", { name: "Peer", verdict: "dislikes" }),
+    removeFood: actions.removeFood("f1"),
+    addRoutine: actions.addRoutine({ time: "10:00", label: "Fruit" }),
+    updateRoutine: actions.updateRoutine("rt5", { time: "08:00", label: "Wakker" }),
+    removeRoutine: actions.removeRoutine("rt1"),
+    addMedicine: actions.addMedicine({ name: "Vitamine D", intervalHours: 24 }),
+    updateMedicine: actions.updateMedicine("para", { name: "Dafalgan", intervalHours: 4 }),
+    removeMedicine: actions.removeMedicine("para"),
     clearBudget: actions.setBudget("food", null),
     setBudget: actions.setBudget("food", 30000),
   };
@@ -88,7 +111,13 @@ describe("parseChangeset", () => {
 
   it("rejects ops that are not allowed", () => {
     expect(parseChangeset(cs({ op: "insert", c: "members", row: { id: "m9", name: "Eve", position: 2 } })).ok).toBe(false);
-    expect(parseChangeset(cs(update({ label: "x" }, "routine", "rt1"))).ok).toBe(false);
+    expect(parseChangeset(cs(update({ title: "x" }, "events", "e1"))).ok).toBe(false);
+  });
+
+  it("accepts routine inserts and medicine deletes", () => {
+    const row = { id: "rt9", time: "10:00", label: "Fruit", position: 5 };
+    expect(parseChangeset(cs({ op: "insert", c: "routine", row })).ok).toBe(true);
+    expect(parseChangeset(cs({ op: "delete", c: "medicines", key: "para" })).ok).toBe(true);
   });
 
   it("accepts recipe inserts and free-text meals, and rejects a too long title", () => {

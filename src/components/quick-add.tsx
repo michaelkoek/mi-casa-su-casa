@@ -1,12 +1,13 @@
 "use client";
 
-import { CheckSquare, Hammer, Pill, Wallet, Warning } from "@phosphor-icons/react";
+import { CheckSquare, Hammer, Pill, Wallet } from "@phosphor-icons/react";
 import { useTranslations } from "next-intl";
 import { useState, type FormEvent } from "react";
-import { addDose, addExpense, addProject, addTask } from "@/lib/actions";
-import { addDays, formatDuration, formatTime, nextDoseAllowedAt, parseEuroToCents, toDateKey } from "@/lib/logic";
+import { addExpense, addProject, addTask } from "@/lib/actions";
+import { addDays, parseEuroToCents, toDateKey } from "@/lib/logic";
 import { useHousehold } from "@/lib/store";
 import type { Priority, ProjectKind } from "@/lib/types";
+import { DoseForm } from "./dose-form";
 import { ChoiceGroup, Field, PrimaryButton } from "./form";
 import { Sheet } from "./sheet";
 import { useUI, type SheetKind } from "./ui-provider";
@@ -37,7 +38,7 @@ export function QuickAdd() {
       {sheet === "expense" && <ExpenseForm />}
       {sheet === "task" && <TaskForm />}
       {sheet === "project" && <ProjectForm />}
-      {sheet === "dose" && <DoseForm />}
+      {sheet === "dose" && <DoseForm onDone={closeSheet} />}
     </Sheet>
   );
 }
@@ -153,47 +154,6 @@ function ProjectForm() {
       <ChoiceGroup label={t("priority")} value={priority} onChange={setPriority}
         options={[{ value: "high", label: t("high") }, { value: "medium", label: t("medium") }, { value: "low", label: t("low") }]} />
       <PrimaryButton type="submit">{t("submit")}</PrimaryButton>
-    </form>
-  );
-}
-
-export function DoseForm({ presetMedicine }: { presetMedicine?: string }) {
-  const t = useTranslations("quick.dose");
-  const { state } = useHousehold();
-  const { act, closeSheet } = useUI();
-  const [medicineId, setMedicineId] = useState(presetMedicine ?? state.medicines[0].id);
-  const lastAmount = [...state.doses].reverse().find((d) => d.medicineId === medicineId)?.amount ?? "";
-  const [amount, setAmount] = useState(lastAmount);
-  const [confirmEarly, setConfirmEarly] = useState(false);
-
-  const medicine = state.medicines.find((m) => m.id === medicineId)!;
-  const next = nextDoseAllowedAt(state.doses, medicine);
-  const now = new Date();
-  const tooEarly = next !== null && next.getTime() > now.getTime();
-
-  const submit = (e: FormEvent) => {
-    e.preventDefault();
-    if (tooEarly && !confirmEarly) return setConfirmEarly(true);
-    closeSheet();
-    act(t("saved", { name: medicine.name }), addDose(medicineId, amount.trim(), state.me, new Date()));
-  };
-
-  return (
-    <form onSubmit={submit} className="flex flex-col gap-5">
-      <ChoiceGroup label={t("medicine")} value={medicineId}
-        onChange={(v) => { setMedicineId(v); setConfirmEarly(false); }}
-        options={state.medicines.map((m) => ({ value: m.id, label: m.name }))} />
-      <Field label={t("amount")} placeholder={t("amountPlaceholder")} value={amount} onChange={(e) => setAmount(e.target.value)}
-        hint={t("hint", { hours: medicine.intervalHours })} />
-      {tooEarly && (
-        <div role="alert" className="pop flex gap-3 rounded-2xl bg-accent-soft p-4 text-sm">
-          <Warning size={22} className="flex-none text-accent-strong" weight="fill" />
-          <p>
-            {t("tooEarly", { time: formatTime(next!), wait: formatDuration(next!.getTime() - now.getTime()) })}
-          </p>
-        </div>
-      )}
-      <PrimaryButton type="submit">{tooEarly ? (confirmEarly ? t("confirmEarly") : t("submitEarly")) : t("submit")}</PrimaryButton>
     </form>
   );
 }
