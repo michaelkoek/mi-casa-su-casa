@@ -9,6 +9,7 @@ import { doneChore, toggleSignal, toggleTask } from "@/lib/actions";
 import { budgetSummary, formatEuro, formatTime, minutesAgo, missingIngredients, nextAssignee, toDateKey, weekdayName as dayShort } from "@/lib/logic";
 import { useHousehold, useMemberName, useNow } from "@/lib/store";
 import { Checkbox } from "../form";
+import { findHomeItem, HomeSheet, type HomeEditing } from "../home-forms";
 import { BinArt, BlocksArt, CalendarArt, LaundryArt, PiggyArt, PlateArt, PumpkinArt, ToolboxArt } from "../illustrations";
 import { Screen } from "../screen";
 import { useUI } from "../ui-provider";
@@ -28,6 +29,10 @@ function Today() {
   const now = useNow();
   const { act } = useUI();
   const [view, setView] = useState<"overview" | "todo">("overview");
+  const [editing, setEditing] = useState<HomeEditing | null>(null);
+  // Separate from editing so the sheet keeps its content while it slides away.
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [formKey, setFormKey] = useState(0);
   const today = toDateKey(now);
   const me = state.members.find((m) => m.id === state.me)!;
 
@@ -35,6 +40,16 @@ function Today() {
   const todayTasks = state.tasks.filter((x) => x.due !== null && x.due <= today && (!x.doneAt || x.doneAt.slice(0, 10) === today));
   const dueChores = state.chores.filter((c) => c.nextDue <= today);
   const openCount = todayTasks.filter((x) => !x.doneAt).length + dueChores.length;
+
+  const item = findHomeItem(state, editing);
+  // The other member deleted it: close for good, so an undo on their side doesn't reopen the sheet.
+  if (sheetOpen && editing && item === null) setSheetOpen(false);
+
+  const openEdit = (id: string) => {
+    setEditing({ kind: "task", id });
+    setFormKey((k) => k + 1);
+    setSheetOpen(true);
+  };
 
   return (
     <>
@@ -86,20 +101,26 @@ function Today() {
           {todayTasks.map((task) => {
             const done = !!task.doneAt;
             return (
-              <button key={task.id} type="button" aria-pressed={done}
-                className="flex min-h-14 w-full items-center gap-3 border-b border-line py-3 text-left last:border-b-0"
-                onClick={() => act(done ? t("reopened") : t("checked"), toggleTask(task.id, new Date()))}>
-                <Checkbox done={done} />
-                <span className={clsx("transition-colors duration-200", done && "text-ink-3 line-through")}>{task.title}</span>
-                <span className="ml-auto whitespace-nowrap text-xs text-ink-3">
-                  {task.assigneeId === state.me ? t("you") : nameOf(task.assigneeId)}
-                  {task.dueLabel ? ` · ${task.dueLabel}` : task.due && task.due < today ? ` · ${t("overdue")}` : ""}
-                </span>
-              </button>
+              <div key={task.id} className="flex items-center gap-1 border-b border-line last:border-b-0">
+                <button type="button" aria-pressed={done} aria-label={t("taskToggle", { title: task.title })}
+                  className="press -ml-2.5 grid h-11 w-11 flex-none place-items-center"
+                  onClick={() => act(done ? t("reopened") : t("checked"), toggleTask(task.id, new Date()))}>
+                  <Checkbox done={done} />
+                </button>
+                <button type="button" className="flex min-h-14 min-w-0 flex-1 items-center gap-3 py-3 text-left"
+                  onClick={() => openEdit(task.id)}>
+                  <span className={clsx("transition-colors duration-200", done && "text-ink-3 line-through")}>{task.title}</span>
+                  <span className="ml-auto whitespace-nowrap text-xs text-ink-3">
+                    {task.assigneeId === state.me ? t("you") : nameOf(task.assigneeId)}
+                    {task.dueLabel ? ` · ${task.dueLabel}` : task.due && task.due < today ? ` · ${t("overdue")}` : ""}
+                  </span>
+                </button>
+              </div>
             );
           })}
         </div>
       )}
+      <HomeSheet editing={editing} item={item} open={sheetOpen} formKey={formKey} onClose={() => setSheetOpen(false)} />
     </>
   );
 }

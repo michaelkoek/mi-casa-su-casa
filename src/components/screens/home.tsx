@@ -20,6 +20,7 @@ import { canAddSignal, choresDueWithin, formatEuro, MAX_SIGNALS, minutesAgo, nex
 import { useHousehold, useMemberName, useNow } from "@/lib/store";
 import type { HomeProject, ProjectStatus } from "@/lib/types";
 import { Checkbox, SoftButton } from "../form";
+import { findHomeItem, HomeSheet, type HomeEditing } from "../home-forms";
 import { PageHeader, Screen, SectionTitle } from "../screen";
 import { SignalFace, SignalSheet } from "../signal-sheet";
 import { useUI } from "../ui-provider";
@@ -36,6 +37,21 @@ function Home() {
   const t = useTranslations("home");
   const params = useSearchParams();
   const [tab, setTab] = useState<"household" | "projects">(params.get("tab") === "klusjes" ? "projects" : "household");
+  const { state } = useHousehold();
+  const [editing, setEditing] = useState<HomeEditing | null>(null);
+  // Separate from editing so the sheet keeps its content while it slides away.
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [formKey, setFormKey] = useState(0);
+
+  const item = findHomeItem(state, editing);
+  // The other member deleted it: close for good, so an undo on their side doesn't reopen the sheet.
+  if (sheetOpen && editing && item === null) setSheetOpen(false);
+
+  const openEdit = (e: HomeEditing) => {
+    setEditing(e);
+    setFormKey((k) => k + 1);
+    setSheetOpen(true);
+  };
 
   return (
     <>
@@ -57,14 +73,15 @@ function Home() {
       <AnimatePresence mode="wait" initial={false}>
         <motion.div key={tab} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}
           transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}>
-          {tab === "household" ? <Household /> : <Projects />}
+          {tab === "household" ? <Household onOpen={openEdit} /> : <Projects onOpen={openEdit} />}
         </motion.div>
       </AnimatePresence>
+      <HomeSheet editing={editing} item={item} open={sheetOpen} formKey={formKey} onClose={() => setSheetOpen(false)} />
     </>
   );
 }
 
-function Household() {
+function Household({ onOpen }: { onOpen: (e: HomeEditing) => void }) {
   const t = useTranslations("home");
   const { state } = useHousehold();
   const nameOf = useMemberName();
@@ -121,16 +138,22 @@ function Household() {
         {openTasks.length === 0 && <p className="py-5 text-center text-ink-3">{t("noTasks")}</p>}
         <AnimatePresence initial={false}>
           {openTasks.map((task) => (
-            <motion.button layout key={task.id} type="button" exit={{ opacity: 0, x: 24 }} transition={{ duration: 0.22 }}
-              className="flex min-h-14 w-full items-center gap-3 border-b border-line py-3 text-left last:border-b-0"
-              onClick={() => act(t("taskDone"), toggleTask(task.id, new Date()))}>
-              <Checkbox done={false} />
-              <span className="min-w-0 flex-1">{task.title}</span>
-              <span className="whitespace-nowrap text-xs text-ink-3">
-                {task.assigneeId === state.me ? t("you") : nameOf(task.assigneeId)}
-                {task.due ? ` · ${dueLabel(task.due)}` : ""}
-              </span>
-            </motion.button>
+            <motion.div layout key={task.id} exit={{ opacity: 0, x: 24 }} transition={{ duration: 0.22 }}
+              className="flex items-center gap-1 border-b border-line last:border-b-0">
+              <button type="button" aria-label={t("taskToggle", { title: task.title })}
+                className="press -ml-2.5 grid h-11 w-11 flex-none place-items-center"
+                onClick={() => act(t("taskDone"), toggleTask(task.id, new Date()))}>
+                <Checkbox done={false} />
+              </button>
+              <button type="button" className="flex min-h-14 min-w-0 flex-1 items-center gap-3 py-3 text-left"
+                onClick={() => onOpen({ kind: "task", id: task.id })}>
+                <span className="min-w-0 flex-1">{task.title}</span>
+                <span className="whitespace-nowrap text-xs text-ink-3">
+                  {task.assigneeId === state.me ? t("you") : nameOf(task.assigneeId)}
+                  {task.due ? ` · ${dueLabel(task.due)}` : ""}
+                </span>
+              </button>
+            </motion.div>
           ))}
         </AnimatePresence>
       </div>
@@ -237,7 +260,7 @@ function otherName(state: { me: string; members: { id: string; name: string }[] 
 
 const STATUS_ORDER: ProjectStatus[] = ["doing", "todo", "done"];
 
-function Projects() {
+function Projects({ onOpen }: { onOpen: (e: HomeEditing) => void }) {
   const t = useTranslations("home.projectsView");
   const { state } = useHousehold();
   const { openSheet } = useUI();
@@ -254,9 +277,11 @@ function Projects() {
   return (
     <>
       <SectionTitle aside={formatEuro(total, true)}>{t("open", { count: open.length })}</SectionTitle>
+      {sorted.length === 0 && <p className="rounded-[22px] bg-surface p-4 text-sm text-ink-2">{t("empty")}</p>}
       <div className="flex flex-col gap-2">
         {sorted.map((p) => (
-          <ProjectCard key={p.id} project={p} expanded={openId === p.id} onToggle={() => setOpenId(openId === p.id ? null : p.id)} />
+          <ProjectCard key={p.id} project={p} expanded={openId === p.id} onOpen={onOpen}
+            onToggle={() => setOpenId(openId === p.id ? null : p.id)} />
         ))}
       </div>
       <SoftButton className="mt-3 w-full" onClick={() => openSheet("project")}>
@@ -266,7 +291,9 @@ function Projects() {
   );
 }
 
-function ProjectCard({ project: p, expanded, onToggle }: { project: HomeProject; expanded: boolean; onToggle: () => void }) {
+function ProjectCard({ project: p, expanded, onToggle, onOpen }: {
+  project: HomeProject; expanded: boolean; onToggle: () => void; onOpen: (e: HomeEditing) => void;
+}) {
   const t = useTranslations("home.projectsView");
   const { update } = useHousehold();
   const { act, toast } = useUI();
@@ -305,7 +332,7 @@ function ProjectCard({ project: p, expanded, onToggle }: { project: HomeProject;
         {expanded && (
           <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.26, ease: [0.16, 1, 0.3, 1] }} className="px-4">
-            <div className="flex gap-2 pb-3">
+            <div className="flex items-center gap-2 pb-3">
               {(["todo", "doing", "done"] as const).map((s) => (
                 <button key={s} type="button" aria-pressed={p.status === s}
                   onClick={() => act(t("statusSaved", { status: t(`status.${s}`) }), setProjectStatus(p.id, s))}
@@ -314,14 +341,24 @@ function ProjectCard({ project: p, expanded, onToggle }: { project: HomeProject;
                   {t(`status.${s}`)}
                 </button>
               ))}
+              <button type="button" aria-label={t("edit")} onClick={() => onOpen({ kind: "project", id: p.id })}
+                className="press ml-auto grid h-11 w-11 place-items-center rounded-full bg-bg text-ink-2">
+                <PencilSimple size={18} />
+              </button>
             </div>
             <p className="pb-1 text-[13px] font-semibold text-ink-3">{t("materials", { bought, total: p.materials.length })}</p>
             {p.materials.map((m) => (
-              <button key={m.id} type="button" onClick={() => update(toggleMaterial(p.id, m.id))}
-                className="flex min-h-11 w-full items-center gap-3 text-left">
-                <Checkbox done={m.bought} />
-                <span className={clsx(m.bought && "text-ink-3 line-through")}>{m.name}</span>
-              </button>
+              <div key={m.id} className="flex items-center gap-1">
+                <button type="button" aria-pressed={m.bought} aria-label={t("materialToggle", { name: m.name })}
+                  className="press -ml-2.5 grid h-11 w-11 flex-none place-items-center"
+                  onClick={() => update(toggleMaterial(p.id, m.id))}>
+                  <Checkbox done={m.bought} />
+                </button>
+                <button type="button" className="min-h-11 min-w-0 flex-1 text-left"
+                  onClick={() => onOpen({ kind: "material", projectId: p.id, id: m.id })}>
+                  <span className={clsx(m.bought && "text-ink-3 line-through")}>{m.name}</span>
+                </button>
+              </div>
             ))}
             <form onSubmit={addMat} className="mt-1 flex gap-2">
               <label className="sr-only" htmlFor={`mat-${p.id}`}>{t("addMaterial")}</label>

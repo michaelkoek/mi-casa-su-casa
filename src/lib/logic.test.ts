@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   addDays,
+  parseCostCents,
+  taskDueChoice,
+  dueFromChoice,
+  MAX_CENTS,
   canAddSignal,
   cleanSignalLabel,
   budgetSummary,
@@ -360,5 +364,44 @@ describe("nextDoseAllowedAt after updateDose", () => {
     const moved = new Date(new Date(dose.at).getTime() - 2 * 3600000).toISOString();
     const next = updateDose(dose.id, { at: moved })(s);
     expect(nextDoseAllowedAt(next.doses, med)!.getTime()).toBe(before.getTime() - 2 * 3600000);
+  });
+});
+
+describe("parseCostCents", () => {
+  it("reads empty and zero as 0", () => {
+    for (const v of ["", "  ", "0", "0,00"]) expect(parseCostCents(v), v).toBe(0);
+  });
+  it("reads amounts", () => {
+    expect(parseCostCents("12,50")).toBe(1250);
+    expect(parseCostCents("€ 120")).toBe(12000);
+    expect(parseCostCents("0,5")).toBe(50);
+    expect(parseCostCents("1.234,56")).toBe(123456);
+  });
+  it("rejects junk, negatives and too large", () => {
+    expect(parseCostCents("abc")).toBeNull();
+    expect(parseCostCents("-5")).toBeNull();
+    expect(parseCostCents(String(MAX_CENTS / 100 + 1))).toBeNull();
+  });
+});
+
+describe("task due choice", () => {
+  const today = "2026-10-28";
+  it("maps a due date to a choice", () => {
+    expect(taskDueChoice(null, today)).toBe("none");
+    expect(taskDueChoice(today, today)).toBe("today");
+    expect(taskDueChoice("2026-10-29", today)).toBe("tomorrow");
+    expect(taskDueChoice("2026-10-20", today)).toBe("pick");
+    expect(taskDueChoice("2026-11-20", today)).toBe("pick");
+  });
+  it("round-trips every choice", () => {
+    for (const due of [null, today, "2026-10-29", "2026-11-20", "2026-10-20"]) {
+      expect(dueFromChoice(taskDueChoice(due, today), today, due ?? "")).toBe(due);
+    }
+  });
+  it("maps a choice back to a due date", () => {
+    expect(dueFromChoice("today", today, "2026-12-01")).toBe(today);
+    expect(dueFromChoice("tomorrow", today, "2026-12-01")).toBe("2026-10-29");
+    expect(dueFromChoice("pick", today, "2026-12-01")).toBe("2026-12-01");
+    expect(dueFromChoice("none", today, "2026-12-01")).toBeNull();
   });
 });

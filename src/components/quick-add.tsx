@@ -3,12 +3,12 @@
 import { CheckSquare, Hammer, Pill, Wallet } from "@phosphor-icons/react";
 import { useTranslations } from "next-intl";
 import { useState, type FormEvent } from "react";
-import { addExpense, addProject, addTask } from "@/lib/actions";
-import { addDays, parseEuroToCents, toDateKey } from "@/lib/logic";
+import { addExpense } from "@/lib/actions";
+import { parseEuroToCents } from "@/lib/logic";
 import { useHousehold } from "@/lib/store";
-import type { Priority, ProjectKind } from "@/lib/types";
 import { DoseForm } from "./dose-form";
 import { ChoiceGroup, Field, PrimaryButton } from "./form";
+import { ProjectForm, TaskForm } from "./home-forms";
 import { Sheet } from "./sheet";
 import { useUI, type SheetKind } from "./ui-provider";
 
@@ -36,8 +36,8 @@ export function QuickAdd() {
         </div>
       )}
       {sheet === "expense" && <ExpenseForm />}
-      {sheet === "task" && <TaskForm />}
-      {sheet === "project" && <ProjectForm />}
+      {sheet === "task" && <TaskForm onDone={closeSheet} />}
+      {sheet === "project" && <ProjectForm onDone={closeSheet} />}
       {sheet === "dose" && <DoseForm onDone={closeSheet} />}
     </Sheet>
   );
@@ -86,73 +86,6 @@ function ExpenseForm() {
       <Field label={t("what")} placeholder={t("whatPlaceholder")} value={what} onChange={(e) => setWhat(e.target.value)} />
       <ChoiceGroup label={t("category")} value={category} onChange={setCategory}
         options={state.categories.map((c) => ({ value: c.id, label: c.name }))} />
-      <PrimaryButton type="submit">{t("submit")}</PrimaryButton>
-    </form>
-  );
-}
-
-function TaskForm() {
-  const t = useTranslations("quick.task");
-  const { state } = useHousehold();
-  const { act, closeSheet } = useUI();
-  const [title, setTitle] = useState("");
-  const [who, setWho] = useState(state.me);
-  const [when, setWhen] = useState<"today" | "tomorrow" | "none">("today");
-  const [error, setError] = useState<string | null>(null);
-
-  const submit = (e: FormEvent) => {
-    e.preventDefault();
-    if (!title.trim()) return setError(t("titleError"));
-    const today = toDateKey(new Date());
-    const due = when === "today" ? today : when === "tomorrow" ? addDays(today, 1) : null;
-    closeSheet();
-    act(t("saved"), addTask(title.trim(), who, due));
-  };
-
-  return (
-    <form onSubmit={submit} className="flex flex-col gap-5">
-      <Field label={t("what")} placeholder={t("whatPlaceholder")} value={title} autoFocus error={error}
-        onChange={(e) => { setTitle(e.target.value); setError(null); }} />
-      <ChoiceGroup label={t("who")} value={who} onChange={setWho}
-        options={state.members.map((m) => ({ value: m.id, label: m.id === state.me ? t("me") : m.name }))} />
-      <ChoiceGroup label={t("when")} value={when} onChange={setWhen}
-        options={[{ value: "today", label: t("today") }, { value: "tomorrow", label: t("tomorrow") }, { value: "none", label: t("noDate") }]} />
-      <PrimaryButton type="submit">{t("submit")}</PrimaryButton>
-    </form>
-  );
-}
-
-function ProjectForm() {
-  const t = useTranslations("quick.project");
-  const { act, closeSheet } = useUI();
-  const [title, setTitle] = useState("");
-  const [room, setRoom] = useState("");
-  const [cost, setCost] = useState("");
-  const [kind, setKind] = useState<ProjectKind>("finish");
-  const [priority, setPriority] = useState<Priority>("medium");
-  const [error, setError] = useState<string | null>(null);
-
-  const submit = (e: FormEvent) => {
-    e.preventDefault();
-    if (!title.trim()) return setError(t("titleError"));
-    closeSheet();
-    act(t("saved"), addProject({
-      title: title.trim(), room: room.trim() || t("roomDefault"), kind, priority, costCents: parseEuroToCents(cost) ?? 0,
-    }));
-  };
-
-  return (
-    <form onSubmit={submit} className="flex flex-col gap-5">
-      <Field label={t("what")} placeholder={t("whatPlaceholder")} value={title} autoFocus error={error}
-        onChange={(e) => { setTitle(e.target.value); setError(null); }} />
-      <div className="grid grid-cols-2 gap-3">
-        <Field label={t("room")} placeholder={t("roomPlaceholder")} value={room} onChange={(e) => setRoom(e.target.value)} />
-        <Field label={t("cost")} inputMode="decimal" placeholder="0" value={cost} onChange={(e) => setCost(e.target.value)} />
-      </div>
-      <ChoiceGroup label={t("kind")} value={kind} onChange={setKind}
-        options={[{ value: "finish", label: t("finish") }, { value: "maintenance", label: t("maintenance") }]} />
-      <ChoiceGroup label={t("priority")} value={priority} onChange={setPriority}
-        options={[{ value: "high", label: t("high") }, { value: "medium", label: t("medium") }, { value: "low", label: t("low") }]} />
       <PrimaryButton type="submit">{t("submit")}</PrimaryButton>
     </form>
   );

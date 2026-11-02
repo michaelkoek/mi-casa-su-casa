@@ -1,5 +1,5 @@
 import { shopKey } from "./insights";
-import { canAddSignal, cleanNames, cleanSignalLabel, completeChore, findRecipeByName, missingIngredients, normalizeItem, toDateKey, uid } from "./logic";
+import { canAddSignal, cleanNames, cleanSignalLabel, completeChore, findRecipeByName, MAX_CENTS, missingIngredients, normalizeItem, toDateKey, uid } from "./logic";
 import type {
   CareDay,
   CareSlot,
@@ -12,6 +12,7 @@ import type {
   ProjectStatus,
   ShoppingItem,
   SignalIcon,
+  Task,
 } from "./types";
 
 /* Pure state updaters. Each one returns a new household state. */
@@ -90,6 +91,85 @@ export const toggleMaterial = (projectId: string, materialId: string) => (s: S):
       ? { ...p, materials: p.materials.map((m) => (m.id === materialId ? { ...m, bought: !m.bought } : m)) }
       : p,
   ),
+});
+
+type TaskInput = { title: string; assigneeId: MemberId; due: string | null };
+
+/** Patches a task. Moving the due date clears the old dueLabel; doneAt is never touched. */
+export const updateTask = (id: string, patch: Partial<TaskInput>) => (s: S): S => {
+  const next: Partial<Task> = {};
+  if (patch.title !== undefined) {
+    const title = cleanText(patch.title, 100);
+    if (!title) return s;
+    next.title = title;
+  }
+  if (patch.assigneeId !== undefined) {
+    if (!s.members.some((m) => m.id === patch.assigneeId)) return s;
+    next.assigneeId = patch.assigneeId;
+  }
+  if (patch.due !== undefined) {
+    if (patch.due !== null && !DATE_RE.test(patch.due)) return s;
+    next.due = patch.due;
+  }
+  return {
+    ...s,
+    tasks: s.tasks.map((t) => {
+      if (t.id !== id) return t;
+      const changed = next.due !== undefined && next.due !== t.due;
+      return { ...t, ...next, ...(changed ? { dueLabel: null } : {}) };
+    }),
+  };
+};
+
+export const removeTask = (id: string) => (s: S): S => ({ ...s, tasks: s.tasks.filter((t) => t.id !== id) });
+
+type ProjectInput = { title: string; room: string; kind: ProjectKind; priority: Priority; costCents: number };
+
+export const updateProject = (id: string, patch: Partial<ProjectInput>) => (s: S): S => {
+  const next: Partial<ProjectInput> = {};
+  if (patch.title !== undefined) {
+    const title = cleanText(patch.title, 100);
+    if (!title) return s;
+    next.title = title;
+  }
+  if (patch.room !== undefined) {
+    const room = cleanText(patch.room, 100);
+    if (!room) return s;
+    next.room = room;
+  }
+  if (patch.kind !== undefined) {
+    if (patch.kind !== "finish" && patch.kind !== "maintenance") return s;
+    next.kind = patch.kind;
+  }
+  if (patch.priority !== undefined) {
+    if (patch.priority !== "high" && patch.priority !== "medium" && patch.priority !== "low") return s;
+    next.priority = patch.priority;
+  }
+  if (patch.costCents !== undefined) {
+    const n = patch.costCents;
+    if (!Number.isInteger(n) || n < 0 || n > MAX_CENTS) return s;
+    next.costCents = n;
+  }
+  return { ...s, projects: s.projects.map((p) => (p.id === id ? { ...p, ...next } : p)) };
+};
+
+/** Removes the project; its materials go with it (nested), so one undo restores both. */
+export const removeProject = (id: string) => (s: S): S => ({ ...s, projects: s.projects.filter((p) => p.id !== id) });
+
+export const renameMaterial = (projectId: string, materialId: string, name: string) => (s: S): S => {
+  const clean = cleanText(name, 100);
+  if (!clean) return s;
+  return {
+    ...s,
+    projects: s.projects.map((p) =>
+      p.id === projectId ? { ...p, materials: p.materials.map((m) => (m.id === materialId ? { ...m, name: clean } : m)) } : p,
+    ),
+  };
+};
+
+export const removeMaterial = (projectId: string, materialId: string) => (s: S): S => ({
+  ...s,
+  projects: s.projects.map((p) => (p.id === projectId ? { ...p, materials: p.materials.filter((m) => m.id !== materialId) } : p)),
 });
 
 /** Puts every not-yet-bought material of a project on "halen" (no duplicates). */

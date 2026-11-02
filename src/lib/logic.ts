@@ -176,6 +176,13 @@ export function parseEuroToCents(input: string): number | null {
   return cents > 0 ? cents : null;
 }
 
+/** Project cost input to cents. "" / whitespace / "0" / "0,00" → 0; a valid amount → cents; > MAX_CENTS or unreadable → null. */
+export function parseCostCents(input: string): number | null {
+  if (/^[€\s]*0*([.,]0{1,2})?[€\s]*$/.test(input)) return 0;
+  const cents = parseEuroToCents(input);
+  return cents !== null && cents <= MAX_CENTS ? cents : null;
+}
+
 const euro = new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR" });
 const euroWhole = new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
 
@@ -300,4 +307,21 @@ export function suggestMeals(recipes: Recipe[], shopping: ShoppingItem[]): MealS
       (a, b) =>
         b.score - a.score || a.missing.length - b.missing.length || a.recipe.name.localeCompare(b.recipe.name, "nl"),
     );
+}
+
+export type DueChoice = "today" | "tomorrow" | "pick" | "none";
+
+/** null → "none"; today → "today"; addDays(today,1) → "tomorrow"; any other date → "pick". */
+export function taskDueChoice(due: string | null, today: string): DueChoice {
+  if (due === null) return "none";
+  if (due === today) return "today";
+  if (due === addDays(today, 1)) return "tomorrow";
+  return "pick";
+}
+
+export function dueFromChoice(choice: DueChoice, today: string, picked: string): string | null {
+  if (choice === "today") return today;
+  if (choice === "tomorrow") return addDays(today, 1);
+  if (choice === "pick") return picked;
+  return null;
 }

@@ -1,6 +1,5 @@
 "use client";
 
-import { Trash } from "@phosphor-icons/react";
 import { useTranslations } from "next-intl";
 import { useState, type FormEvent } from "react";
 import {
@@ -45,7 +44,7 @@ import type {
   Temperature,
 } from "@/lib/types";
 import { DoseForm, MedicineForm } from "./dose-form";
-import { ChoiceGroup, Field, PrimaryButton, SoftButton, StickyAction } from "./form";
+import { ChoiceGroup, Field, FormActions } from "./form";
 import { Sheet } from "./sheet";
 import { useUI } from "./ui-provider";
 
@@ -112,22 +111,6 @@ export function ChildSheet({ editing, item, open, formKey, onClose }: {
   );
 }
 
-/** Save button plus, when editing, the delete button. */
-function Actions({ label, onRemove, removeLabel }: { label: string; onRemove?: () => void; removeLabel: string }) {
-  return (
-    <>
-      <StickyAction>
-        <PrimaryButton type="submit">{label}</PrimaryButton>
-      </StickyAction>
-      {onRemove && (
-        <SoftButton className="w-full text-bad" onClick={onRemove}>
-          <Trash size={18} /> {removeLabel}
-        </SoftButton>
-      )}
-    </>
-  );
-}
-
 const kgText = (g: number) => String(g / 1000).replace(".", ",");
 const numText = (n: number) => String(n).replace(".", ",");
 
@@ -164,7 +147,7 @@ export function TempForm({ item, onDone }: { item: Temperature | null; onDone: (
         <Field label={t("time")} type="time" value={parts.time} error={timeError}
           onChange={(e) => { setParts({ ...parts, time: e.target.value }); setTimeError(null); }} />
       </div>
-      <Actions label={t("submit")} removeLabel={t("remove")}
+      <FormActions label={t("submit")} removeLabel={t("remove")}
         onRemove={item ? () => { onDone(); act(t("removed"), removeTemperature(item.id)); } : undefined} />
     </form>
   );
@@ -201,7 +184,7 @@ export function AppointmentForm({ item, onDone }: { item: Appointment | null; on
           onChange={(e) => { setParts({ ...parts, time: e.target.value }); setDateError(null); }} />
       </div>
       <Field label={t("place")} placeholder={t("placePlaceholder")} maxLength={200} value={place} onChange={(e) => setPlace(e.target.value)} />
-      <Actions label={item ? t("save") : t("submit")} removeLabel={t("remove")}
+      <FormActions label={item ? t("save") : t("submit")} removeLabel={t("remove")}
         onRemove={item ? () => { onDone(); act(t("removed"), removeAppointment(item.id)); } : undefined} />
     </form>
   );
@@ -230,7 +213,7 @@ export function MilestoneForm({ item, onDone }: { item: Milestone | null; onDone
         onChange={(e) => { setText(e.target.value); setError(null); }} />
       <Field label={t("date")} type="date" max={toDateKey(new Date())} value={date} error={dateError}
         onChange={(e) => { setDate(e.target.value); setDateError(null); }} />
-      <Actions label={item ? t("save") : t("submit")} removeLabel={t("remove")}
+      <FormActions label={item ? t("save") : t("submit")} removeLabel={t("remove")}
         onRemove={item ? () => { onDone(); act(t("removed"), removeMilestone(item.id)); } : undefined} />
     </form>
   );
@@ -268,7 +251,7 @@ export function GrowthForm({ item, onDone }: { item: GrowthEntry | null; onDone:
       {error && <p role="alert" className="text-[13px] text-bad">{error}</p>}
       <Field label={t("date")} type="date" max={toDateKey(new Date())} value={date} error={dateError}
         onChange={(e) => { setDate(e.target.value); setDateError(null); }} />
-      <Actions label={item ? t("save") : t("submit")} removeLabel={t("remove")}
+      <FormActions label={item ? t("save") : t("submit")} removeLabel={t("remove")}
         onRemove={item ? () => { onDone(); act(t("removed"), removeGrowth(item.id)); } : undefined} />
     </form>
   );
@@ -296,7 +279,7 @@ export function FoodForm({ item, onDone }: { item: FoodTry | null; onDone: () =>
         onChange={(e) => { setName(e.target.value); setError(null); }} />
       <ChoiceGroup label={t("verdict")} value={verdict} onChange={setVerdict}
         options={(["likes", "unsure", "dislikes"] as const).map((v) => ({ value: v, label: tv(v) }))} />
-      <Actions label={item ? t("save") : t("submit")} removeLabel={t("remove")}
+      <FormActions label={item ? t("save") : t("submit")} removeLabel={t("remove")}
         onRemove={item ? () => { onDone(); act(t("removed", { name: item.name }), removeFood(item.id)); } : undefined} />
     </form>
   );
@@ -325,7 +308,7 @@ export function RoutineForm({ item, onDone }: { item: RoutineItem | null; onDone
         onChange={(e) => { setTime(e.target.value); setTimeError(null); }} />
       <Field label={t("label")} placeholder={t("placeholder")} maxLength={100} autoFocus={!item} value={label} error={labelError}
         onChange={(e) => { setLabel(e.target.value); setLabelError(null); }} />
-      <Actions label={t("save")} removeLabel={t("remove")}
+      <FormActions label={t("save")} removeLabel={t("remove")}
         onRemove={item ? () => { onDone(); act(t("removed", { label: item.label }), removeRoutine(item.id)); } : undefined} />
     </form>
   );
@@ -357,7 +340,7 @@ export function SizeForm({ item, onDone }: { item: ClothingSize | null; onDone: 
       <Field label={t("size")} maxLength={40} value={size} error={sizeError}
         onChange={(e) => { setSize(e.target.value); setSizeError(null); }} />
       <Field label={t("note")} placeholder={t("notePlaceholder")} maxLength={200} value={note} onChange={(e) => setNote(e.target.value)} />
-      <Actions label={t("submit")} removeLabel={t("remove")}
+      <FormActions label={t("submit")} removeLabel={t("remove")}
         onRemove={item ? () => { onDone(); act(t("removed", { label: item.label }), removeSize(item.id)); } : undefined} />
     </form>
   );
@@ -381,7 +364,7 @@ export function StockForm({ item, onDone }: { item: StockItem | null; onDone: ()
     <form onSubmit={submit} className="flex flex-col gap-5">
       <Field label={t("name")} placeholder={t("placeholder")} maxLength={100} autoFocus={!item} value={name} error={error}
         onChange={(e) => { setName(e.target.value); setError(null); }} />
-      <Actions label={t("save")} removeLabel={t("remove")}
+      <FormActions label={t("save")} removeLabel={t("remove")}
         onRemove={item ? () => { onDone(); act(t("removed", { name: item.name }), removeStock(item.id)); } : undefined} />
     </form>
   );

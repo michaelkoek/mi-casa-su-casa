@@ -37,6 +37,7 @@
     "choreDone": "{title} gedaan",
     "checked": "Afgevinkt",
     "reopened": "Weer open gezet",
+    "taskToggle": "{title} afvinken",
     "you": "Jij",
     "overdue": "te laat",
     "hero": {
@@ -104,6 +105,7 @@
     "tasksCount": "{count} open",
     "noTasks": "Geen open taken.",
     "taskDone": "Afgevinkt",
+    "taskToggle": "{title} afvinken",
     "projectsView": {
       "open": "{count} open klussen",
       "add": "Klus toevoegen",
@@ -123,7 +125,19 @@
       "materials": "Materialen · {bought} van {total} in huis",
       "addMaterial": "Materiaal toevoegen",
       "toShopping": "Ontbrekende materialen op de lijst",
-      "toShoppingDone": "Op de boodschappenlijst gezet"
+      "toShoppingDone": "Op de boodschappenlijst gezet",
+      "edit": "Klus aanpassen",
+      "empty": "Nog geen klussen. Voeg de eerste toe.",
+      "materialToggle": "{name} in huis",
+      "materialForm": {
+        "title": "Materiaal aanpassen",
+        "name": "Naam",
+        "error": "Geef het materiaal een naam.",
+        "save": "Opslaan",
+        "updated": "{name} bijgewerkt",
+        "remove": "Verwijderen",
+        "removed": "{name} verwijderd"
+      }
     }
   },
   "signals": {
@@ -482,7 +496,15 @@
       "tomorrow": "Morgen",
       "noDate": "Geen datum",
       "saved": "Taak toegevoegd",
-      "submit": "Toevoegen"
+      "submit": "Toevoegen",
+      "editTitle": "Taak aanpassen",
+      "pick": "Andere dag",
+      "date": "Datum",
+      "dateError": "Kies een geldige datum.",
+      "save": "Opslaan",
+      "updated": "{title} bijgewerkt",
+      "remove": "Verwijderen",
+      "removed": "{title} verwijderd"
     },
     "project": {
       "title": "Klus",
@@ -503,7 +525,14 @@
       "medium": "Middel",
       "low": "Laag",
       "saved": "Klus toegevoegd",
-      "submit": "Toevoegen"
+      "submit": "Toevoegen",
+      "editTitle": "Klus aanpassen",
+      "costError": "Vul een bedrag in, bijvoorbeeld 120 of 12,50.",
+      "save": "Opslaan",
+      "updated": "{title} bijgewerkt",
+      "remove": "Verwijderen",
+      "removed": "{title} verwijderd",
+      "removeHint": "{count, plural, one {Het materiaal gaat mee.} other {De # materialen gaan mee.}}"
     },
     "dose": {
       "title": "Medicijn",

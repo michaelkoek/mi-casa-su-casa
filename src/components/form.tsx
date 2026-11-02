@@ -1,5 +1,6 @@
 "use client";
 
+import { Trash } from "@phosphor-icons/react";
 import clsx from "clsx";
 import { useId, type InputHTMLAttributes, type ReactNode } from "react";
 
@@ -112,5 +113,31 @@ export function Checkbox({ done }: { done: boolean }) {
         <path d="M5 12.5l4.2 4.2L19 7" />
       </svg>
     </span>
+  );
+}
+
+/** Save button (sticky) plus, when editing, the delete button with an optional hint below it. */
+export function FormActions({ label, onRemove, removeLabel, removeHint }: {
+  label: string; onRemove?: () => void; removeLabel: string; removeHint?: string;
+}) {
+  const remove = onRemove && (
+    <SoftButton className="w-full text-bad" onClick={onRemove}>
+      <Trash size={18} /> {removeLabel}
+    </SoftButton>
+  );
+  return (
+    <>
+      <StickyAction>
+        <PrimaryButton type="submit">{label}</PrimaryButton>
+      </StickyAction>
+      {remove && removeHint ? (
+        <div className="flex flex-col gap-2">
+          {remove}
+          <p className="text-[13px] text-ink-3">{removeHint}</p>
+        </div>
+      ) : (
+        remove
+      )}
+    </>
   );
 }

@@ -25,8 +25,9 @@ import {
   toggleTask,
   addDose, updateDose, removeDose, addTemperature, updateTemperature, removeTemperature, updateAppointment,
   updateMilestone, removeMilestone, updateGrowth, removeGrowth, updateFood, removeFood, addRoutine, updateRoutine,
-  removeRoutine, addMedicine, updateMedicine, removeMedicine, addSize, updateSize, removeSize, addStock, renameStock, removeStock,
+  removeRoutine, updateTask, removeTask, updateProject, removeProject, renameMaterial, removeMaterial, addMedicine, updateMedicine, removeMedicine, addSize, updateSize, removeSize, addStock, renameStock, removeStock,
 } from "./actions";
+import { MAX_CENTS } from "./logic";
 import { createSeed } from "./seed";
 
 const now = new Date("2026-10-24T14:00:00");
@@ -387,5 +388,74 @@ describe("child updaters", () => {
     expect(renameStock("st1", "")(s)).toBe(s);
     expect(renameStock("nope", "x")(s)).toEqual(s);
     expect(removeStock("st1")(s).stock).toHaveLength(3);
+  });
+});
+
+describe("home updaters", () => {
+  const s = createSeed(new Date("2026-10-28T10:00:00Z"));
+
+  it("updateTask patches, trims and cuts the title", () => {
+    const next = updateTask("t1", { title: `  ${"x".repeat(120)} `, assigneeId: "m2", due: "2026-11-05" })(s);
+    expect(next.tasks[0]).toMatchObject({ title: "x".repeat(100), assigneeId: "m2", due: "2026-11-05" });
+    expect(next.tasks[1]).toBe(s.tasks[1]);
+  });
+  it("updateTask validates", () => {
+    expect(updateTask("t1", { title: "  " })(s)).toBe(s);
+    expect(updateTask("t1", { assigneeId: "m9" })(s)).toBe(s);
+    expect(updateTask("t1", { due: "28-10-2026" })(s)).toBe(s);
+    expect(updateTask("nope", { title: "x" })(s)).toEqual(s);
+  });
+  it("updateTask clears dueLabel only when the due date changes", () => {
+    const t3 = s.tasks.find((x) => x.id === "t3")!;
+    expect(t3.dueLabel).toBe("voor 19:00");
+    expect(updateTask("t3", { due: "2026-12-01" })(s).tasks.find((x) => x.id === "t3")?.dueLabel).toBeNull();
+    expect(updateTask("t3", { due: t3.due })(s).tasks.find((x) => x.id === "t3")?.dueLabel).toBe("voor 19:00");
+  });
+  it("updateTask never touches doneAt", () => {
+    const t2 = s.tasks.find((x) => x.id === "t2")!;
+    expect(updateTask("t2", { title: "Nieuw" })(s).tasks.find((x) => x.id === "t2")?.doneAt).toBe(t2.doneAt);
+  });
+  it("removeTask with an unknown id changes nothing", () => {
+    expect(removeTask("nope")(s).tasks).toEqual(s.tasks);
+  });
+  it("removeTask removes only that task", () => {
+    const next = removeTask("t1")(s);
+    expect(next.tasks.map((x) => x.id)).toEqual(s.tasks.filter((x) => x.id !== "t1").map((x) => x.id));
+  });
+
+  it("updateProject patches all five fields and keeps status and materials", () => {
+    const before = s.projects.find((p) => p.id === "p1")!;
+    const next = updateProject("p1", { title: " Kast ", room: "Gang", kind: "maintenance", priority: "low", costCents: 500 })(s);
+    expect(next.projects[0]).toEqual({ ...before, title: "Kast", room: "Gang", kind: "maintenance", priority: "low", costCents: 500 });
+    expect(next.projects[0].materials).toBe(before.materials);
+    expect(next.projects[1]).toBe(s.projects[1]);
+  });
+  it("updateProject validates", () => {
+    expect(updateProject("p1", { title: " " })(s)).toBe(s);
+    expect(updateProject("p1", { room: " " })(s)).toBe(s);
+    for (const c of [-1, 1.5, MAX_CENTS + 1]) expect(updateProject("p1", { costCents: c })(s)).toBe(s);
+    expect(updateProject("p1", { kind: "x" as never })(s)).toBe(s);
+    expect(updateProject("p1", { priority: "x" as never })(s)).toBe(s);
+    expect(updateProject("nope", { title: "x" })(s)).toEqual(s);
+  });
+  it("removeProject removes the project with its materials only", () => {
+    const next = removeProject("p1")(s);
+    expect(next.projects.map((p) => p.id)).toEqual(s.projects.slice(1).map((p) => p.id));
+    expect(next.projects[0]).toBe(s.projects[1]);
+  });
+
+  it("renameMaterial trims, keeps bought and validates", () => {
+    const next = renameMaterial("p1", "mt1", "  Deur 70 cm ")(s);
+    expect(next.projects[0].materials[0]).toEqual({ id: "mt1", name: "Deur 70 cm", bought: true });
+    expect(next.projects[0].materials[1]).toBe(s.projects[0].materials[1]);
+    expect(next.projects[1]).toBe(s.projects[1]);
+    expect(renameMaterial("p1", "mt1", " ")(s)).toBe(s);
+    expect(renameMaterial("nope", "mt1", "x")(s)).toEqual(s);
+    expect(renameMaterial("p1", "nope", "x")(s)).toEqual(s);
+  });
+  it("removeMaterial removes only that material", () => {
+    const next = removeMaterial("p1", "mt1")(s);
+    expect(next.projects[0].materials.map((m) => m.id)).toEqual(["mt2", "mt3"]);
+    expect(next.projects[1]).toBe(s.projects[1]);
   });
 });
