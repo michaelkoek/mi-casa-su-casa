@@ -36,7 +36,7 @@ vi.mock("@/db", () => {
 process.env.LIGHTS_TOKEN_KEY = randomBytes(32).toString("base64");
 
 const { encrypt } = await import("../bank/crypto");
-const { lightsOverview, removeLightConnection, removeShellyDevice, setLight } = await import("./connections");
+const { editShellyDevice, lightsOverview, removeLightConnection, removeShellyDevice, setLight } = await import("./connections");
 
 const dialect = new PgDialect();
 const ctx = { userId: "u", email: "a@x.nl", householdId: "hh-1", memberId: "m1" };
@@ -88,12 +88,12 @@ describe("lights stay inside the household", () => {
     expect(scopedToHousehold()).toBe(true);
   });
 
-  it("never puts credentials in the overview", async () => {
+  it("never puts the key in the overview, only the host", async () => {
     selectResults.push([shellyRow({ host: "a.shelly.cloud", authKey: "super-secret-key" })], []);
     const overview = await lightsOverview(ctx);
     expect(overview.connections.shelly).toBe("active");
     expect(JSON.stringify(overview)).not.toContain("super-secret-key");
-    expect(JSON.stringify(overview)).not.toContain("a.shelly.cloud");
+    expect(overview.shellyHost).toBe("a.shelly.cloud");
     expect(scopedToHousehold()).toBe(true);
   });
 
@@ -108,13 +108,63 @@ describe("lights stay inside the household", () => {
     expect(overview.lights[0]).toMatchObject({ id: "shelly:d1", on: true, brightness: 40, online: true });
   });
 
+  it("waits out the Shelly rate limit instead of showing the device as offline", async () => {
+    selectResults.push(
+      [shellyRow({ host: "a.shelly.cloud", authKey: "k" })],
+      [{ id: "d1", deviceId: "abc", channel: 0, kind: "switch", name: "Hal", room: null }],
+    );
+    fetchMock
+      .mockResolvedValueOnce(new Response("", { status: 429 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify([{ id: "abc", online: 1, status: { "switch:0": { output: true } } }])));
+    const overview = await lightsOverview(ctx);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(overview.problems).toEqual([]);
+    expect(overview.lights[0]).toMatchObject({ online: true, on: true });
+  });
+
+  it("renames a device without calling Shelly", async () => {
+    selectResults.push([{ id: "d1", deviceId: "abc", channel: 0, kind: "switch", name: "Hal", room: null }]);
+    expect(await editShellyDevice(ctx, "d1", { deviceId: "abc", channel: 0, name: "Gang", room: "Beneden" })).toBe("saved");
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(wheres).toHaveLength(2);
+    expect(scopedToHousehold()).toBe(true);
+  });
+
+  it("does not edit a device of another household", async () => {
+    selectResults.push([]);
+    expect(await editShellyDevice(ctx, "other-households-device", { deviceId: "abc", channel: 1, name: "Gang", room: null })).toBe("notFound");
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(scopedToHousehold()).toBe(true);
+  });
+
+  it("keeps the device when its new ID is not found", async () => {
+    selectResults.push(
+      [{ id: "d1", deviceId: "abc", channel: 0, kind: "switch", name: "Hal", room: null }],
+      [shellyRow({ host: "a.shelly.cloud", authKey: "k" })],
+    );
+    fetchMock.mockResolvedValue(new Response("[]"));
+    expect(await editShellyDevice(ctx, "d1", { deviceId: "wrong", channel: 0, name: "Hal", room: null })).toBe("notFound");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(wheres).toHaveLength(2);
+  });
+
+  it("does not move a device onto another one", async () => {
+    selectResults.push([
+      { id: "d1", deviceId: "abc", channel: 0, kind: "switch", name: "Hal", room: null },
+      { id: "d2", deviceId: "abc", channel: 1, kind: "switch", name: "Gang", room: null },
+    ]);
+    expect(await editShellyDevice(ctx, "d1", { deviceId: "abc", channel: 1, name: "Hal", room: null })).toBe("taken");
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(wheres).toHaveLength(1);
+  });
+
   it("shows devices as offline and names the provider when Shelly does not answer", async () => {
     selectResults.push(
       [shellyRow({ host: "a.shelly.cloud", authKey: "k" })],
       [{ id: "d1", deviceId: "abc", channel: 0, kind: "switch", name: "Hal", room: null }],
       [shellyRow({ host: "a.shelly.cloud", authKey: "k" })],
     );
-    fetchMock.mockResolvedValue(new Response("", { status: 429 }));
+    fetchMock.mockResolvedValue(new Response("", { status: 500 }));
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
     const overview = await lightsOverview(ctx);
     expect(overview.problems).toEqual(["shelly"]);

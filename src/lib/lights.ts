@@ -20,10 +20,15 @@ export type Light = {
 export type LightChange = { on?: boolean; brightness?: number };
 export type ConnectionStatus = "active" | "expired" | null;
 
+/** A Shelly device as the household entered it. `id` is the row id; the auth key is never part of this. */
+export type ShellyDevice = { id: string; deviceId: string; channel: number; name: string; room: string | null };
+
 export type LightsOverview = {
   connections: Record<LightProvider, ConnectionStatus>;
   hueAvailable: boolean;
   lights: Light[];
+  shellyHost: string | null;
+  shellyDevices: ShellyDevice[];
   /** Providers that could not be reached just now. */
   problems: LightProvider[];
 };
@@ -37,6 +42,26 @@ export type LightsOverview = {
 export function normalizeShellyHost(input: string): string | null {
   const host = input.trim().toLowerCase().replace(/^https:\/\//, "").replace(/\/$/, "");
   return /^[a-z0-9-]+(\.[a-z0-9-]+)*\.shelly\.cloud$/.test(host) ? host : null;
+}
+
+/**
+ * Runs a call again while it reports the rate limit. Shelly allows one call per second per account,
+ * shared by both phones, and adding a device reads it twice in a row.
+ */
+export async function retryWhileLimited<T>(
+  call: () => Promise<T>,
+  isLimited: (err: unknown) => boolean,
+  wait: () => Promise<void>,
+  retries = 2,
+): Promise<T> {
+  for (let left = retries; ; left--) {
+    try {
+      return await call();
+    } catch (err) {
+      if (left === 0 || !isLimited(err)) throw err;
+      await wait();
+    }
+  }
 }
 
 const LIGHT_COMPONENTS = ["light", "cct", "rgb", "rgbw", "rgbcct"];

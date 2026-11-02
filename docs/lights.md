@@ -24,7 +24,7 @@ Controleer `src/lib/server/lights/hue.ts` tegen de Hue-docs als het koppelen mis
 
 ## Grenzen
 
-- Shelly: één call per seconde per account, gedeeld door beide telefoons. De schuifregelaar wacht daarom 1,1 seconde voor hij verstuurt. Elk verzoek om status leest maximaal 10 apparaten.
+- Shelly: één call per seconde per account, gedeeld door beide telefoons. De schuifregelaar wacht daarom 1,1 seconde voor hij verstuurt, en een call die 429 krijgt wordt tot twee keer herhaald met 1,1 seconde ertussen. Elk verzoek om status leest maximaal 10 apparaten.
 - De Shelly-sleutel verandert als het wachtwoord verandert. De app toont dan "Koppeling verlopen".
 - Status wordt opgehaald bij het openen en via de verversknop, niet live.
 - Hue-tokens roteren bij elke refresh. De kolom `refresh_lease_until` zorgt dat maar één aanroeper tegelijk ververst (`neon-http` heeft geen transacties). De cron `/api/cron/lights` ververst 48 uur voor het einde en stuurt één push als opnieuw koppelen nodig is.

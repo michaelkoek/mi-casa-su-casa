@@ -1,13 +1,13 @@
 "use client";
 
-import { ArrowClockwise, CaretLeft, Lightbulb, Plus, Trash } from "@phosphor-icons/react";
+import { ArrowClockwise, CaretLeft, Lightbulb, PencilSimple, Plus, Trash } from "@phosphor-icons/react";
 import clsx from "clsx";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
-import { addShelly, changeLight, connectShelly, disconnectLights, getLights, removeShelly, startHueLink } from "@/app/actions/lights";
+import { addShelly, changeLight, connectShelly, disconnectLights, editShelly, getLights, removeShelly, startHueLink } from "@/app/actions/lights";
 import { doneVariant } from "@/lib/bank-callback";
-import { groupByRoom, normalizeShellyHost, type ConnectionStatus, type Light, type LightChange, type LightProvider, type LightsOverview } from "@/lib/lights";
+import { groupByRoom, normalizeShellyHost, type ConnectionStatus, type Light, type LightChange, type LightProvider, type LightsOverview, type ShellyDevice } from "@/lib/lights";
 import { Field, PrimaryButton } from "../form";
 import { PageHeader, Screen, SectionTitle } from "../screen";
 import { Sheet } from "../sheet";
@@ -199,8 +199,6 @@ function Connections({ data, reload }: { data: LightsOverview; reload: () => Pro
     setGoing(false);
   };
 
-  const shellyLights = data.lights.filter((l) => l.provider === "shelly");
-
   return (
     <>
       <SectionTitle>{t("connections")}</SectionTitle>
@@ -222,7 +220,7 @@ function Connections({ data, reload }: { data: LightsOverview; reload: () => Pro
             </button>
           } />
       </div>
-      <ShellySheet open={shellyOpen} onClose={() => setShellyOpen(false)} connected={data.connections.shelly === "active"} devices={shellyLights} reload={reload} />
+      <ShellySheet open={shellyOpen} onClose={() => setShellyOpen(false)} connected={data.connections.shelly === "active"} host={data.shellyHost} devices={data.shellyDevices} reload={reload} />
     </>
   );
 }
@@ -272,18 +270,42 @@ function ConnectionRow({ provider, status, action, reload }: { provider: LightPr
   );
 }
 
-function ShellySheet({ open, onClose, connected, devices, reload }: { open: boolean; onClose: () => void; connected: boolean; devices: Light[]; reload: () => Promise<void> }) {
+function ShellySheet({ open, onClose, connected, host, devices, reload }: { open: boolean; onClose: () => void; connected: boolean; host: string | null; devices: ShellyDevice[]; reload: () => Promise<void> }) {
   const t = useTranslations("lights");
+  const [changingKey, setChangingKey] = useState(false);
+  const showConnect = !connected || changingKey;
+  // Reload first: the device list must not show the old host while the new one is on its way.
+  const saved = async () => {
+    await reload();
+    setChangingKey(false);
+  };
+  const close = () => {
+    setChangingKey(false);
+    onClose();
+  };
   return (
-    <Sheet open={open} onClose={onClose} title={t(connected ? "shellyDevices" : "shellyConnectTitle")}>
-      {connected ? <ShellyDevices devices={devices} reload={reload} /> : <ShellyConnect reload={reload} />}
+    <Sheet open={open} onClose={close} title={t(showConnect ? "shellyConnectTitle" : "shellyDevices")}>
+      {showConnect ? (
+        <ShellyConnect initialHost={host ?? ""} reload={saved} onCancel={connected ? () => setChangingKey(false) : undefined} />
+      ) : (
+        <>
+          <div className="mt-1 flex items-center gap-2 border-b border-line pb-3">
+            <div className="min-w-0 flex-1">
+              <p className="text-[13px] font-semibold text-ink-2">{t("host")}</p>
+              <p className="truncate text-sm">{host}</p>
+            </div>
+            <button type="button" className={ROW_BUTTON} onClick={() => setChangingKey(true)}>{t("changeLink")}</button>
+          </div>
+          <ShellyDevices devices={devices} reload={reload} />
+        </>
+      )}
     </Sheet>
   );
 }
 
-function ShellyConnect({ reload }: { reload: () => Promise<void> }) {
+function ShellyConnect({ initialHost, reload, onCancel }: { initialHost: string; reload: () => Promise<void>; onCancel?: () => void }) {
   const t = useTranslations("lights");
-  const [host, setHost] = useState("");
+  const [host, setHost] = useState(initialHost);
   const [authKey, setAuthKey] = useState("");
   const [error, setError] = useState<"hostError" | "unavailable" | "failed" | null>(null);
   const [busy, setBusy] = useState(false);
@@ -314,44 +336,21 @@ function ShellyConnect({ reload }: { reload: () => Promise<void> }) {
       <Field label={t("authKey")} type="password" value={authKey} onChange={(e) => setAuthKey(e.target.value)} autoComplete="off" required />
       {error && error !== "hostError" && <p role="alert" className="text-sm font-medium text-bad">{t(error)}</p>}
       <PrimaryButton type="submit" disabled={busy}>{t("save")}</PrimaryButton>
+      {onCancel && <button type="button" className={clsx(ROW_BUTTON, "w-full")} onClick={onCancel}>{t("cancel")}</button>}
     </form>
   );
 }
 
-function ShellyDevices({ devices, reload }: { devices: Light[]; reload: () => Promise<void> }) {
+function ShellyDevices({ devices, reload }: { devices: ShellyDevice[]; reload: () => Promise<void> }) {
   const t = useTranslations("lights");
   const { toast } = useUI();
-  const [deviceId, setDeviceId] = useState("");
-  const [channel, setChannel] = useState("0");
-  const [name, setName] = useState("");
-  const [room, setRoom] = useState("");
-  const [error, setError] = useState<"invalid" | "notFound" | "failed" | "unavailable" | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  // The device can disappear while editing (removed on the other phone): back to adding.
+  const editing = devices.find((d) => d.id === editingId) ?? null;
 
-  const add = async (e: FormEvent) => {
-    e.preventDefault();
-    setBusy(true);
-    setError(null);
+  const remove = async (device: ShellyDevice) => {
     try {
-      const res = await addShelly({ deviceId, channel: Number(channel), name, room });
-      if (res.ok) {
-        toast(t("added", { name: name.trim() }));
-        setDeviceId("");
-        setChannel("0");
-        setName("");
-        await reload();
-      } else {
-        setError(res.error === "unauthorized" ? "failed" : res.error);
-      }
-    } catch {
-      setError("failed");
-    }
-    setBusy(false);
-  };
-
-  const remove = async (light: Light) => {
-    try {
-      const res = await removeShelly({ id: light.id.slice("shelly:".length) });
+      const res = await removeShelly({ id: device.id });
       if (!res.ok) toast(t("failed"));
       await reload();
     } catch {
@@ -363,24 +362,81 @@ function ShellyDevices({ devices, reload }: { devices: Light[]; reload: () => Pr
     <div className="mt-1">
       {devices.length === 0 && <p className="text-sm text-ink-3">{t("shellyNoDevices")}</p>}
       {devices.map((d) => (
-        <div key={d.id} className="flex min-h-12 items-center gap-2 border-b border-line">
-          <span className="min-w-0 flex-1 truncate font-medium">{d.name}</span>
+        <div key={d.id} className="flex min-h-14 items-center gap-1 border-b border-line py-1.5">
+          <div className="min-w-0 flex-1">
+            <p className="truncate font-medium">{d.name}</p>
+            <p className="truncate text-[13px] text-ink-3">{d.room ?? t("noRoom")} · {d.deviceId} · {t("channelShort", { channel: d.channel })}</p>
+          </div>
+          <button type="button" onClick={() => setEditingId(d.id)} aria-label={t("editDevice", { name: d.name })}
+            className="press grid h-11 w-11 flex-none place-items-center rounded-full text-ink-3">
+            <PencilSimple size={18} />
+          </button>
           <button type="button" onClick={() => remove(d)} aria-label={t("removeDevice", { name: d.name })}
-            className="press grid h-11 w-11 place-items-center rounded-full text-ink-3">
+            className="press grid h-11 w-11 flex-none place-items-center rounded-full text-ink-3">
             <Trash size={18} />
           </button>
         </div>
       ))}
-      <form onSubmit={add} className="mt-4 flex flex-col gap-3">
-        <p className="text-[13px] font-semibold text-ink-3">{t("shellyAddTitle")}</p>
-        <Field label={t("name")} value={name} onChange={(e) => setName(e.target.value)} maxLength={60} required />
-        <Field label={t("room")} value={room} onChange={(e) => setRoom(e.target.value)} maxLength={60} />
-        <Field label={t("deviceId")} hint={t("deviceIdHint")} value={deviceId} onChange={(e) => setDeviceId(e.target.value)}
-          autoCapitalize="none" autoCorrect="off" spellCheck={false} required />
-        <Field label={t("channel")} hint={t("channelHint")} type="number" inputMode="numeric" min={0} max={15} value={channel} onChange={(e) => setChannel(e.target.value)} required />
-        {error && <p role="alert" className="text-sm font-medium text-bad">{t(error)}</p>}
-        <PrimaryButton type="submit" disabled={busy}><Plus size={18} /> {t("add")}</PrimaryButton>
-      </form>
+      <DeviceForm key={editing?.id ?? "new"} device={editing} reload={reload} onDone={() => setEditingId(null)} />
     </div>
+  );
+}
+
+function DeviceForm({ device, reload, onDone }: { device: ShellyDevice | null; reload: () => Promise<void>; onDone: () => void }) {
+  const t = useTranslations("lights");
+  const { toast } = useUI();
+  const [deviceId, setDeviceId] = useState(device?.deviceId ?? "");
+  const [channel, setChannel] = useState(String(device?.channel ?? 0));
+  const [name, setName] = useState(device?.name ?? "");
+  const [room, setRoom] = useState(device?.room ?? "");
+  const [error, setError] = useState<"invalid" | "notFound" | "taken" | "failed" | "unavailable" | null>(null);
+  const [busy, setBusy] = useState(false);
+  const form = useRef<HTMLFormElement>(null);
+
+  // The form sits below the list: with several devices the pencil would seem to do nothing.
+  const editingId = device?.id;
+  useEffect(() => {
+    if (editingId) form.current?.scrollIntoView({ block: "start", behavior: "smooth" });
+  }, [editingId]);
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      const input = { deviceId, channel: Number(channel), name, room };
+      const res = await (device ? editShelly({ id: device.id, ...input }) : addShelly(input));
+      if (res.ok) {
+        toast(t(device ? "saved" : "added", { name: name.trim() }));
+        if (!device) {
+          setDeviceId("");
+          setChannel("0");
+          setName("");
+        }
+        await reload();
+        onDone();
+      } else {
+        setError(res.error === "unauthorized" ? "failed" : res.error);
+      }
+    } catch {
+      setError("failed");
+    }
+    setBusy(false);
+  };
+
+  return (
+    <form ref={form} onSubmit={submit} className="mt-4 flex flex-col gap-3">
+      <p className="text-[13px] font-semibold text-ink-3">{device ? t("editDevice", { name: device.name }) : t("shellyAddTitle")}</p>
+      <Field label={t("name")} value={name} onChange={(e) => setName(e.target.value)} maxLength={60} required />
+      <Field label={t("room")} value={room} onChange={(e) => setRoom(e.target.value)} maxLength={60} />
+      <Field label={t("deviceId")} hint={t("deviceIdHint")} value={deviceId} onChange={(e) => setDeviceId(e.target.value)}
+        autoCapitalize="none" autoCorrect="off" spellCheck={false} required />
+      <Field label={t("channel")} hint={t("channelHint")} type="number" inputMode="numeric" min={0} max={15} value={channel} onChange={(e) => setChannel(e.target.value)} required />
+      {error && <p role="alert" className="text-sm font-medium text-bad">{t(error)}</p>}
+      <PrimaryButton type="submit" disabled={busy}>
+        {device ? t("save") : <><Plus size={18} /> {t("add")}</>}
+      </PrimaryButton>
+      {device && <button type="button" className={clsx(ROW_BUTTON, "w-full")} onClick={onDone}>{t("cancel")}</button>}
+    </form>
   );
 }

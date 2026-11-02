@@ -7,6 +7,7 @@ import {
   parseHueTokens,
   parseHueUsername,
   readShellyChannel,
+  retryWhileLimited,
   refreshOnce,
   shellyCommand,
   tokenExpiresWithin,
@@ -49,6 +50,41 @@ describe("readShellyChannel", () => {
     expect(readShellyChannel({ "switch:0": { output: true } }, 1)).toBeNull();
     expect(readShellyChannel({ sys: {} }, 0)).toBeNull();
     expect(readShellyChannel(undefined, 0)).toBeNull();
+  });
+});
+
+describe("retryWhileLimited", () => {
+  const limited = new Error("429");
+  const isLimited = (err: unknown) => err === limited;
+  const noWait = () => Promise.resolve();
+
+  it("gets the result after the limit has passed", async () => {
+    let calls = 0;
+    const call = async () => {
+      if (++calls < 3) throw limited;
+      return "ok";
+    };
+    await expect(retryWhileLimited(call, isLimited, noWait)).resolves.toBe("ok");
+    expect(calls).toBe(3);
+  });
+  it("gives up after the retries", async () => {
+    let calls = 0;
+    const call = async () => {
+      calls++;
+      throw limited;
+    };
+    await expect(retryWhileLimited(call, isLimited, noWait)).rejects.toBe(limited);
+    expect(calls).toBe(3);
+  });
+  it("does not repeat other failures", async () => {
+    let calls = 0;
+    const other = new Error("401");
+    const call = async () => {
+      calls++;
+      throw other;
+    };
+    await expect(retryWhileLimited(call, isLimited, noWait)).rejects.toBe(other);
+    expect(calls).toBe(1);
   });
 });
 

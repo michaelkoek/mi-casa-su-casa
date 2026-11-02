@@ -13,6 +13,7 @@ import {
   type LightChange,
   type LightProvider,
   type LightsOverview,
+  type ShellyDevice,
 } from "@/lib/lights";
 import { decrypt, encrypt, stableId } from "../bank/crypto";
 import { hueEnv, lightsKey } from "../env";
@@ -80,11 +81,10 @@ export async function saveShellyConnection(ctx: HouseholdContext, credentials: S
   await saveConnection(ctx, "shelly", seal(credentials), null);
 }
 
+type ShellyDeviceInput = { deviceId: string; channel: number; name: string; room: string | null };
+
 /** Looks the device up at Shelly first; false when that channel is not there or the device is offline. */
-export async function addShellyDevice(
-  ctx: HouseholdContext,
-  input: { deviceId: string; channel: number; name: string; room: string | null },
-): Promise<boolean> {
+export async function addShellyDevice(ctx: HouseholdContext, input: ShellyDeviceInput): Promise<boolean> {
   const connection = await readConnection(ctx, "shelly");
   if (!connection) return false;
   const [state] = await callShelly(ctx, (creds) => getDeviceStates(creds, [input.deviceId]), connection);
@@ -96,6 +96,25 @@ export async function addShellyDevice(
     .values({ householdId: ctx.householdId, id: stableId("ld", `${ctx.householdId}:${input.deviceId}:${input.channel}`), ...row })
     .onConflictDoUpdate({ target: [t.lightDevices.householdId, t.lightDevices.id], set: { ...row, updatedAt: new Date() } });
   return true;
+}
+
+/**
+ * A new name or room needs no call to Shelly. Another ID or channel is looked up like a new device,
+ * and may not land on a device that is already there: adding would overwrite that one.
+ */
+export async function editShellyDevice(ctx: HouseholdContext, id: string, input: ShellyDeviceInput): Promise<"saved" | "notFound" | "taken"> {
+  const devices = await db.select().from(t.lightDevices).where(scope(ctx).where(t.lightDevices));
+  const device = devices.find((d) => d.id === id);
+  if (!device) return "notFound";
+  const where = scope(ctx).where(t.lightDevices, eq(t.lightDevices.id, id));
+  if (device.deviceId === input.deviceId && device.channel === input.channel) {
+    await db.update(t.lightDevices).set({ name: input.name, room: input.room, updatedAt: new Date() }).where(where);
+    return "saved";
+  }
+  if (devices.some((d) => d.deviceId === input.deviceId && d.channel === input.channel)) return "taken";
+  if (!(await addShellyDevice(ctx, input))) return "notFound";
+  await db.delete(t.lightDevices).where(where);
+  return "saved";
 }
 
 export async function removeShellyDevice(ctx: HouseholdContext, id: string): Promise<void> {
@@ -112,7 +131,7 @@ async function callShelly<T>(ctx: HouseholdContext, call: (creds: ShellyCredenti
   }
 }
 
-async function listShelly(ctx: HouseholdContext, connection: Connection): Promise<{ lights: Light[]; reachable: boolean }> {
+async function listShelly(ctx: HouseholdContext, connection: Connection): Promise<{ lights: Light[]; devices: ShellyDevice[]; reachable: boolean }> {
   const devices = await db.select().from(t.lightDevices).where(scope(ctx).where(t.lightDevices)).orderBy(asc(t.lightDevices.name));
   let reachable = true;
   const states =
@@ -137,7 +156,11 @@ async function listShelly(ctx: HouseholdContext, connection: Connection): Promis
       online: !!state?.online && !!channel,
     };
   });
-  return { lights, reachable };
+  return {
+    lights,
+    devices: devices.map(({ id, deviceId, channel, name, room }) => ({ id, deviceId, channel, name, room })),
+    reachable,
+  };
 }
 
 /* ---------- Hue ---------- */
@@ -241,12 +264,22 @@ async function callHue<T>(ctx: HouseholdContext, connection: Connection, call: (
 
 /* ---------- Reading and setting ---------- */
 
+/** Only the host leaves here: the key stays sealed. Unreadable credentials must not take Hue down with them. */
+function readShellyHost(connection: Connection): string | null {
+  try {
+    return open<ShellyCredentials>(connection).host;
+  } catch {
+    return null;
+  }
+}
+
 export async function lightsOverview(ctx: HouseholdContext): Promise<LightsOverview> {
   const rows = await db.select().from(t.lightConnections).where(scope(ctx).where(t.lightConnections));
   const shelly = rows.find((r) => r.provider === "shelly");
   const hue = rows.find((r) => r.provider === "hue");
   const lights: Light[] = [];
   const problems: LightProvider[] = [];
+  let shellyDevices: ShellyDevice[] = [];
   const connections: Record<LightProvider, ConnectionStatus> = { shelly: shelly?.status ?? null, hue: hue?.status ?? null };
 
   await Promise.all([
@@ -266,13 +299,14 @@ export async function lightsOverview(ctx: HouseholdContext): Promise<LightsOverv
       if (shelly?.status !== "active") return;
       const result = await listShelly(ctx, shelly);
       lights.push(...result.lights);
+      shellyDevices = result.devices;
       if (!result.reachable) {
         problems.push("shelly");
         connections.shelly = (await readConnection(ctx, "shelly"))?.status ?? null;
       }
     })(),
   ]);
-  return { connections, hueAvailable: !!hueEnv(), lights, problems };
+  return { connections, hueAvailable: !!hueEnv(), lights, shellyHost: shelly ? readShellyHost(shelly) : null, shellyDevices, problems };
 }
 
 /** Applies a change to "<provider>:<id>". False when this household has no such light or link. */

@@ -1,6 +1,6 @@
 import "server-only";
 import type { LightChange, LightKind } from "@/lib/lights";
-import { shellyCommand } from "@/lib/lights";
+import { retryWhileLimited, shellyCommand } from "@/lib/lights";
 
 /* Shelly Cloud Control API v2. The limit is one call per second, per account. */
 
@@ -20,7 +20,13 @@ export class ShellyError extends Error {
   }
 }
 
-async function post(creds: ShellyCredentials, path: string, body: unknown): Promise<unknown> {
+const pause = () => new Promise<void>((r) => setTimeout(r, PACE_MS));
+
+function post(creds: ShellyCredentials, path: string, body: unknown): Promise<unknown> {
+  return retryWhileLimited(() => postOnce(creds, path, body), (err) => err instanceof ShellyError && err.status === 429, pause);
+}
+
+async function postOnce(creds: ShellyCredentials, path: string, body: unknown): Promise<unknown> {
   const res = await fetch(`https://${creds.host}${path}?auth_key=${encodeURIComponent(creds.authKey)}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -37,7 +43,7 @@ export async function getDeviceStates(creds: ShellyCredentials, deviceIds: strin
   const ids = [...new Set(deviceIds)];
   const states: ShellyDeviceState[] = [];
   for (let i = 0; i < ids.length; i += IDS_PER_CALL) {
-    if (i > 0) await new Promise((r) => setTimeout(r, PACE_MS));
+    if (i > 0) await pause();
     const reply = await post(creds, "/v2/devices/api/get", { ids: ids.slice(i, i + IDS_PER_CALL), select: ["status"] });
     if (Array.isArray(reply)) states.push(...(reply as ShellyDeviceState[]));
   }

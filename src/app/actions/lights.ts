@@ -9,6 +9,7 @@ import { ShellyError } from "@/lib/server/lights/shelly";
 import {
   addShellyDevice,
   createHueAuthState,
+  editShellyDevice,
   lightsOverview,
   removeLightConnection,
   removeShellyDevice,
@@ -16,7 +17,7 @@ import {
   setLight,
 } from "@/lib/server/lights/connections";
 
-type Fail = { ok: false; error: "unauthorized" | "unavailable" | "invalid" | "notFound" | "failed" };
+type Fail = { ok: false; error: "unauthorized" | "unavailable" | "invalid" | "notFound" | "taken" | "failed" };
 type Done = { ok: true } | Fail;
 
 /** Only our own vendor errors carry a message: they hold a status, never a URL with a key in it. */
@@ -30,7 +31,7 @@ async function context(): Promise<{ ctx: NonNullable<Awaited<ReturnType<typeof r
   return { ctx };
 }
 
-/** Current state of every connected light. Credentials never leave the server. */
+/** Current state of every connected light. Keys and tokens never leave the server; the Shelly host does. */
 export async function getLights(): Promise<({ ok: true } & LightsOverview) | Fail> {
   const c = await context();
   if ("error" in c) return c;
@@ -97,6 +98,21 @@ export async function addShelly(input: unknown): Promise<Done> {
     return (await addShellyDevice(c.ctx, parsed.data)) ? { ok: true } : { ok: false, error: "notFound" };
   } catch (err) {
     logFailure("addShelly failed", err);
+    return { ok: false, error: "failed" };
+  }
+}
+
+export async function editShelly(input: unknown): Promise<Done> {
+  const c = await context();
+  if ("error" in c) return c;
+  const parsed = deviceInput.extend({ id: z.string().min(1).max(64) }).safeParse(input);
+  if (!parsed.success) return { ok: false, error: "invalid" };
+  const { id, ...device } = parsed.data;
+  try {
+    const result = await editShellyDevice(c.ctx, id, device);
+    return result === "saved" ? { ok: true } : { ok: false, error: result };
+  } catch (err) {
+    logFailure("editShelly failed", err);
     return { ok: false, error: "failed" };
   }
 }
