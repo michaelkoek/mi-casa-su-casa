@@ -32,11 +32,13 @@ async function context(): Promise<{ ctx: NonNullable<Awaited<ReturnType<typeof r
 }
 
 /** Current state of every connected light. Keys and tokens never leave the server; the Shelly host does. */
-export async function getLights(): Promise<({ ok: true } & LightsOverview) | Fail> {
+export async function getLights(input?: unknown): Promise<({ ok: true } & LightsOverview) | Fail> {
   const c = await context();
   if ("error" in c) return c;
+  const parsed = z.object({ provider: z.enum(["shelly", "hue"]).optional() }).safeParse(input ?? {});
+  if (!parsed.success) return { ok: false, error: "invalid" };
   try {
-    return { ok: true, ...(await lightsOverview(c.ctx)) };
+    return { ok: true, ...(await lightsOverview(c.ctx, parsed.data.provider)) };
   } catch (err) {
     logFailure("getLights failed", err);
     return { ok: false, error: "failed" };

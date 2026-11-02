@@ -14,7 +14,7 @@ type Outcome = "linked" | "cancelled" | "failed";
 export async function GET(req: NextRequest) {
   const session = await getHouseholdContext();
   const back = (result: Outcome) =>
-    NextResponse.redirect(new URL(session ? `/huis/lampen?hue=${result}` : `/lampen-klaar?result=${result}`, req.url), 303);
+    NextResponse.redirect(new URL(session ? `/huis/lampen/hue?hue=${result}` : `/lampen-klaar?result=${result}`, req.url), 303);
 
   const params = req.nextUrl.searchParams;
   const state = z.uuid().safeParse(params.get("state"));

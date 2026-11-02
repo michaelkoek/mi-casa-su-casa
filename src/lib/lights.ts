@@ -33,6 +33,26 @@ export type LightsOverview = {
   problems: LightProvider[];
 };
 
+/** Only a light that can answer counts as on. */
+export const isLit = (light: Light) => light.on && light.online;
+
+/** What a brand's tile and page say about it. */
+export type BrandSummary =
+  | { kind: "notConnected" | "expired" | "unreachable" | "empty" }
+  | { kind: "lights"; on: number; total: number };
+
+export function brandSummary(data: Pick<LightsOverview, "connections" | "lights" | "problems">, provider: LightProvider): BrandSummary {
+  const status = data.connections[provider];
+  if (status === null) return { kind: "notConnected" };
+  if (status === "expired") return { kind: "expired" };
+  if (data.problems.includes(provider)) return { kind: "unreachable" };
+  const lights = data.lights.filter((l) => l.provider === provider);
+  if (lights.length === 0) return { kind: "empty" };
+  // None answering is not the same as all off.
+  if (!lights.some((l) => l.online)) return { kind: "unreachable" };
+  return { kind: "lights", on: lights.filter(isLit).length, total: lights.length };
+}
+
 /* ---------- Shelly ---------- */
 
 /**

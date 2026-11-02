@@ -22,6 +22,10 @@ Controleer `src/lib/server/lights/hue.ts` tegen de Hue-docs als het koppelen mis
 2. Hue: registreer een Remote API-app op developers.meethue.com met callback `https://<productiedomein>/api/lights/hue/callback`. Zet `HUE_CLIENT_ID` en `HUE_CLIENT_SECRET` op Vercel. De callback is geregistreerd op één domein, dus Hue koppelen werkt niet vanaf localhost.
 3. Shelly: vul in de app onder Huis, Lampen de server en sleutel in uit de Shelly-app (Gebruikersinstellingen, Authorization cloud key) en voeg apparaten toe met hun ID.
 
+## Schermen
+
+Huis, Lampen toont één tegel per merk. Elk merk heeft een eigen pagina (`/huis/lampen/hue`, `/huis/lampen/shelly`) met zijn lampen en koppeling, die alleen die leverancier bevraagt. Een lampenscherm dat binnen 15 seconden na het overzicht opent of terugkomt, gebruikt die stand, zodat Shelly geen tweede call krijgt. Next houdt pagina's verborgen in leven (`<Activity>`), dus dit wordt bij elke terugkeer opnieuw bekeken. Schakelen of verversen wist de stand.
+
 ## Grenzen
 
 - Shelly: één call per seconde per account, gedeeld door beide telefoons. De schuifregelaar wacht daarom 1,1 seconde voor hij verstuurt, en een call die 429 krijgt wordt tot twee keer herhaald met 1,1 seconde ertussen. Elk verzoek om status leest maximaal 10 apparaten.

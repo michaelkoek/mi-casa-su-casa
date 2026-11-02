@@ -87,6 +87,32 @@ export function LampArt({ className }: Props) {
   );
 }
 
+export function BulbArt({ className }: Props) {
+  return (
+    <svg className={className} width="130" height="140" viewBox="0 0 130 140" aria-hidden="true">
+      <path d="M65 8a44 44 0 0 1 26 79c-5 4-8 9-8 15H47c0-6-3-11-8-15A44 44 0 0 1 65 8z" fill="#f6c86b" />
+      <path d="M43 46a24 24 0 0 1 22-20" stroke="#fbe7b0" strokeWidth="7" fill="none" strokeLinecap="round" />
+      <path d="M53 102V76l-9-12M77 102V76l9-12" stroke="#e0a53a" strokeWidth="4" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+      <rect x="47" y="102" width="36" height="12" rx="4" fill="#e8743b" />
+      <rect x="50" y="114" width="30" height="12" rx="4" fill="#c4521e" />
+      <rect x="55" y="126" width="20" height="14" rx="5" fill="#17181f" />
+    </svg>
+  );
+}
+
+export function WallSwitchArt({ className }: Props) {
+  return (
+    <svg className={className} width="124" height="136" viewBox="0 0 124 136" aria-hidden="true">
+      <rect x="14" y="14" width="96" height="122" rx="16" fill="#ffffff" />
+      <rect x="14" y="14" width="96" height="122" rx="16" fill="none" stroke="#8fb3dc" strokeWidth="4" />
+      <rect x="36" y="38" width="52" height="74" rx="10" fill="#dde9f6" />
+      <path d="M36 48a10 10 0 0 1 10-10h32a10 10 0 0 1 10 10v28H36z" fill="#e8743b" />
+      <rect x="56" y="50" width="12" height="4" rx="2" fill="#ffffff" />
+      <circle cx="62" cy="96" r="5" fill="none" stroke="#8fb3dc" strokeWidth="3" />
+    </svg>
+  );
+}
+
 export function PumpkinArt({ className }: Props) {
   return (
     <svg className={className} width="96" height="90" viewBox="0 0 96 90" aria-hidden="true">

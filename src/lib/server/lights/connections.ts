@@ -273,7 +273,8 @@ function readShellyHost(connection: Connection): string | null {
   }
 }
 
-export async function lightsOverview(ctx: HouseholdContext): Promise<LightsOverview> {
+/** Asks only the `only` vendor when given: a brand page should not spend the other brand's calls. */
+export async function lightsOverview(ctx: HouseholdContext, only?: LightProvider): Promise<LightsOverview> {
   const rows = await db.select().from(t.lightConnections).where(scope(ctx).where(t.lightConnections));
   const shelly = rows.find((r) => r.provider === "shelly");
   const hue = rows.find((r) => r.provider === "hue");
@@ -284,7 +285,7 @@ export async function lightsOverview(ctx: HouseholdContext): Promise<LightsOverv
 
   await Promise.all([
     (async () => {
-      if (hue?.status !== "active") return;
+      if (hue?.status !== "active" || only === "shelly") return;
       try {
         const { lights: found, rooms } = await callHue(ctx, hue, listResources);
         lights.push(...mapHueLights(found, rooms));
@@ -296,7 +297,7 @@ export async function lightsOverview(ctx: HouseholdContext): Promise<LightsOverv
       }
     })(),
     (async () => {
-      if (shelly?.status !== "active") return;
+      if (shelly?.status !== "active" || only === "hue") return;
       const result = await listShelly(ctx, shelly);
       lights.push(...result.lights);
       shellyDevices = result.devices;
@@ -362,7 +363,7 @@ async function warnReconnect(ctx: HouseholdContext): Promise<void> {
   const tr = await getTranslations({ locale: "nl", namespace: "lights.push" });
   const members = await listMembers(ctx);
   try {
-    await sendPushToMembers(ctx, members.map((m) => m.id), { title: tr("title"), body: tr("body"), url: "/huis/lampen", tag: "lights-hue" });
+    await sendPushToMembers(ctx, members.map((m) => m.id), { title: tr("title"), body: tr("body"), url: "/huis/lampen/hue", tag: "lights-hue" });
   } catch {
     console.error("lights reconnect push failed");
     return;

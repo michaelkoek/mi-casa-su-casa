@@ -14,6 +14,8 @@ describe("proxy matcher", () => {
     expect(isProtected("/api/lights/hue/callback")).toBe(false);
     expect(isProtected("/lampen-klaar")).toBe(false);
     expect(isProtected("/huis/lampen")).toBe(true);
+    expect(isProtected("/huis/lampen/hue")).toBe(true);
+    expect(isProtected("/huis/lampen/shelly")).toBe(true);
   });
   it("keeps the other public paths public", () => {
     for (const p of ["/login", "/api/auth/sign-in", "/api/cron/bank", "/_next/static/a.js", "/manifest.webmanifest"])

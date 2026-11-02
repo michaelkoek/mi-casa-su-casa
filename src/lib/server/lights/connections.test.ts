@@ -122,6 +122,22 @@ describe("lights stay inside the household", () => {
     expect(overview.lights[0]).toMatchObject({ online: true, on: true });
   });
 
+  it("asks only the vendor of the brand page", async () => {
+    selectResults.push(
+      [shellyRow({ host: "a.shelly.cloud", authKey: "k" })],
+      [{ id: "d1", deviceId: "abc", channel: 0, kind: "switch", name: "Hal", room: null }],
+    );
+    await lightsOverview(ctx, "hue");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("does not ask Hue from the Shelly page", async () => {
+    selectResults.push([{ provider: "hue", status: "active" }]);
+    const overview = await lightsOverview(ctx, "shelly");
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(overview.problems).toEqual([]);
+  });
+
   it("renames a device without calling Shelly", async () => {
     selectResults.push([{ id: "d1", deviceId: "abc", channel: 0, kind: "switch", name: "Hal", room: null }]);
     expect(await editShellyDevice(ctx, "d1", { deviceId: "abc", channel: 0, name: "Gang", room: "Beneden" })).toBe("saved");

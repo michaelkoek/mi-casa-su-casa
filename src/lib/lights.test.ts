@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  brandSummary,
   groupByRoom,
   hueLightBody,
   mapHueLights,
@@ -50,6 +51,35 @@ describe("readShellyChannel", () => {
     expect(readShellyChannel({ "switch:0": { output: true } }, 1)).toBeNull();
     expect(readShellyChannel({ sys: {} }, 0)).toBeNull();
     expect(readShellyChannel(undefined, 0)).toBeNull();
+  });
+});
+
+describe("brandSummary", () => {
+  const light = (over: Partial<Light>): Light => ({
+    id: "hue:1", provider: "hue", name: "Hal", room: null, kind: "light", on: false, brightness: null, online: true, ...over,
+  });
+  const base = { connections: { hue: "active", shelly: null } as const, lights: [] as Light[], problems: [] };
+
+  it("says when a brand is not linked or the link ended", () => {
+    expect(brandSummary(base, "shelly")).toEqual({ kind: "notConnected" });
+    expect(brandSummary({ ...base, connections: { hue: "expired", shelly: null } }, "hue")).toEqual({ kind: "expired" });
+  });
+  it("reports a vendor that does not answer rather than an empty house", () => {
+    expect(brandSummary({ ...base, problems: ["hue"] }, "hue")).toEqual({ kind: "unreachable" });
+    expect(brandSummary(base, "hue")).toEqual({ kind: "empty" });
+  });
+  it("does not call lights off when none of them answer", () => {
+    const lights = [light({ online: false }), light({ id: "hue:2", on: true, online: false })];
+    expect(brandSummary({ ...base, lights }, "hue")).toEqual({ kind: "unreachable" });
+  });
+  it("counts only this brand's reachable lights as on", () => {
+    const lights = [
+      light({ on: true }),
+      light({ id: "hue:2", on: false }),
+      light({ id: "hue:3", on: true, online: false }),
+      light({ id: "shelly:1", provider: "shelly", on: true }),
+    ];
+    expect(brandSummary({ ...base, lights }, "hue")).toEqual({ kind: "lights", on: 1, total: 3 });
   });
 });
 
